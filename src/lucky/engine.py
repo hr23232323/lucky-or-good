@@ -149,6 +149,12 @@ def backtest(
     unknown = weights.columns.difference(symbols)
     if len(unknown):
         raise ValueError(f"weights reference unknown symbols: {list(unknown[:5])}")
+    off_calendar = weights.index.difference(dates)
+    if len(off_calendar):
+        notes.append(
+            f"ignored {len(off_calendar)} weight rows dated off the trading calendar "
+            f"(e.g. {off_calendar[0]}); date rows with panel.dates"
+        )
     W = weights.reindex(index=dates, columns=symbols).astype(float)
 
     traded = W.notna().any(axis=1).to_numpy()
