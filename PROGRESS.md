@@ -1,0 +1,21 @@
+# Progress
+
+Goal: an honest playground for LLM strategy research (see `intents/000-goal.md`).
+
+| # | Intent | Status |
+|---|---|---|
+| 001 | Scaffold and agent files | done |
+| 002 | Data layer (MarketParquet reader, point-in-time universe) | planned |
+| 003 | Synthetic market for tests | planned |
+| 004 | Engine: lag, costs, delistings | planned |
+| 005 | Metrics and deflated Sharpe | planned |
+| 006 | Periods and the gate | planned |
+| 007 | Trial ledger | planned |
+| 008 | Look-ahead and static checks | planned |
+| 009 | Baseline strategies and judge CLI | planned |
+| 010 | Anti-cheat test suite | planned |
+| 011 | Propose-strategy skill for local agents | planned |
+
+## Not yet (tracked as GitHub issues once the core exists)
+
+Dividends and total return. Factor attribution (Fama-French). PBO/CSCV. Hourly bars. Running the proposer in a sandbox with no data access. Leaderboard. Memory-vs-skill experiment.

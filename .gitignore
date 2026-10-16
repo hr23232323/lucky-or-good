@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Market data is licensed and never committed. Point LUCKY_DATA_DIR at your copy.
+data/
+*.parquet
+!tests/fixtures/**/*.parquet
+
+# Local run state (ledger, vault seals) lives outside git by default.
+runs/
