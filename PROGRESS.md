@@ -7,8 +7,8 @@ Goal: an honest playground for LLM strategy research (see `intents/000-goal.md`)
 | 001 | Scaffold and agent files | done |
 | 002 | Data layer (MarketParquet reader, point-in-time universe) | done |
 | 003 | Synthetic market for tests | done |
-| 004 | Engine: lag, costs, delistings | planned |
-| 005 | Metrics and deflated Sharpe | planned |
+| 004 | Engine: lag, costs, delistings | done |
+| 005 | Metrics and deflated Sharpe | done |
 | 006 | Periods and the gate | planned |
 | 007 | Trial ledger | planned |
 | 008 | Look-ahead and static checks | planned |
