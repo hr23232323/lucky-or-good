@@ -1,0 +1,33 @@
+# Period layout for the small test markets in conftest.py (2021-01 to 2026-06).
+dataset = "synthetic-small"
+warmup_days = 120
+
+[[block]]
+name = "vault_a"
+kind = "vault"
+start = "2021-07-01"
+end = "2021-12-31"
+
+[[block]]
+name = "discovery"
+kind = "discovery"
+start = "2022-01-03"
+end = "2023-12-29"
+
+[[block]]
+name = "validation"
+kind = "validation"
+start = "2024-01-02"
+end = "2024-12-31"
+
+[[block]]
+name = "vault_b"
+kind = "vault"
+start = "2025-01-02"
+end = "2026-03-31"
+
+[[block]]
+name = "forward"
+kind = "forward"
+start = "2026-04-01"
+end = "2026-06-30"

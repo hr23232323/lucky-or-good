@@ -1,0 +1,48 @@
+# Period layout for MarketParquet US stocks (daily bars, data from 2000-01-03).
+#
+# Why this shape (see docs/design.md and the research notes):
+# - discovery is where the proposer iterates freely; it includes 2008-09 and 2011.
+# - validation answers coarsely and on a budget; it includes the 2015-16 and Q4 2018 drawdowns.
+# - two vaults in different regimes, opened once per frozen strategy: the dot-com bust,
+#   and the recent period the proposing model remembers best (treat passes there with suspicion).
+# - forward is the only data a model with a mid-2026 training cutoff hasn't seen.
+#   Move its start to after the proposing model's cutoff for each season.
+#
+# A strategy may read `warmup_days` business days before a block for lookbacks.
+# Returns are only scored inside the block.
+
+dataset = "marketparquet"
+warmup_days = 260
+
+[[block]]
+name = "vault_a"
+kind = "vault"
+start = "2001-01-02"
+end = "2003-12-31"
+note = "Dot-com bust. 2000 is warm-up only."
+
+[[block]]
+name = "discovery"
+kind = "discovery"
+start = "2004-01-02"
+end = "2014-12-31"
+
+[[block]]
+name = "validation"
+kind = "validation"
+start = "2015-01-02"
+end = "2019-12-31"
+
+[[block]]
+name = "vault_b"
+kind = "vault"
+start = "2020-01-02"
+end = "2026-06-30"
+note = "COVID crash, 2022 rate shock, 2023-25 rally. Inside the proposing model's training data."
+
+[[block]]
+name = "forward"
+kind = "forward"
+start = "2026-07-01"
+end = "2030-12-31"
+note = "After a mid-2026 training cutoff. Grows as new data arrives."

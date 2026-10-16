@@ -53,7 +53,7 @@ A sealed block protects against *search* overfitting. It does not protect agains
 - Universe is chosen point-in-time: top N by trailing median dollar volume, using data through `t-1`. Never today's list.
 - Costs are charged on drift-adjusted turnover, by liquidity bucket, plus a borrow fee on shorts.
 - When a held symbol's data ends, the engine applies a terminal return: a configurable loss if it looked like a failure (low price or a large drawdown before delisting), otherwise zero.
-- Prices are split-adjusted, not total return. Dividends are not yet modelled. This understates buy-and-hold slightly and is noted in every report.
+- Prices are split-adjusted, not total return. Dividends are not yet modelled. This understates buy-and-hold by roughly the dividend yield (about 1.5-2% a year for US large caps).
 
 ## Integrity
 
@@ -64,7 +64,12 @@ A sealed block protects against *search* overfitting. It does not protect agains
 
 ## Threat model (honest version)
 
-This runs locally. An agent with shell access can read the raw Parquet files and see vault data, whatever this code does. The judge makes honest use easy and dishonest use visible (ledger, static checks), but it is not a security boundary. For publishable runs, run the proposing agent without read access to the data directory and call the judge from outside its sandbox. See `docs/running-an-experiment.md`.
+This runs locally. An agent with shell access can read the raw Parquet files, the `sealed/` folder or the ledger, whatever this code does. The judge makes honest use easy and dishonest use visible (ledger, static checks), but it is not a security boundary. For publishable runs, run the proposing agent without read access to the data directory or the season folder, and call the judge from outside its sandbox. See `docs/running-an-experiment.md`.
+
+Known gaps in the checks:
+- A strategy written to detect the truncation check (for example, by comparing its last date with a hard-coded one) can behave honestly when tested and cheat otherwise. The checks assume strategies aren't adversarial towards the checker; reading the code of any finalist is the backstop.
+- The truncation check samples a few dates per run. A strategy that peeks only occasionally can slip through a single run, though it gets more chances to be caught on every rerun.
+- The network block inside the child process patches `socket`; it stops accidents, not determined code. The static import allow-list does most of the work.
 
 ## Scale
 

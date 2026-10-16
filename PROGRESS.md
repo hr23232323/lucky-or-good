@@ -9,9 +9,9 @@ Goal: an honest playground for LLM strategy research (see `intents/000-goal.md`)
 | 003 | Synthetic market for tests | done |
 | 004 | Engine: lag, costs, delistings | done |
 | 005 | Metrics and deflated Sharpe | done |
-| 006 | Periods and the gate | planned |
-| 007 | Trial ledger | planned |
-| 008 | Look-ahead and static checks | planned |
+| 006 | Periods and the gate | done |
+| 007 | Trial ledger | done |
+| 008 | Look-ahead and static checks | done |
 | 009 | Baseline strategies and judge CLI | planned |
 | 010 | Anti-cheat test suite | planned |
 | 011 | Propose-strategy skill for local agents | planned |

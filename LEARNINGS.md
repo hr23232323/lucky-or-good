@@ -9,6 +9,11 @@ Why:
 Changed:
 ```
 
+## 2026-10-16: a lint failure slipped into a commit
+What happened: I ran `ruff check . | tail -3 && git commit ...`; ruff failed but the commit went through.
+Why: a pipe's exit status is the last command's (`tail`), so the failure was swallowed.
+Changed: never pipe gate commands (tests, lint) before `&&`. Fixed with an amend before pushing.
+
 ## 2026-10-16: honest monthly rebalancing tripped the look-ahead check
 What happened: a plain momentum strategy that rebalances on the last trading day of each month was flagged as look-ahead.
 Why: when the truncation check cuts data mid-month, the cut date looks like a month-end, so the truncated run trades there and the full run doesn't. Knowing tomorrow's date isn't cheating; trading calendars are public.

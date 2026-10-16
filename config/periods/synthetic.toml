@@ -1,0 +1,35 @@
+# Same shape as marketparquet.toml, for the default synthetic market (2000-2026).
+# Use with `lucky synthetic <dir>` to try the full loop without licensed data.
+
+dataset = "synthetic"
+warmup_days = 260
+
+[[block]]
+name = "vault_a"
+kind = "vault"
+start = "2001-01-02"
+end = "2003-12-31"
+
+[[block]]
+name = "discovery"
+kind = "discovery"
+start = "2004-01-02"
+end = "2014-12-31"
+
+[[block]]
+name = "validation"
+kind = "validation"
+start = "2015-01-02"
+end = "2019-12-31"
+
+[[block]]
+name = "vault_b"
+kind = "vault"
+start = "2020-01-02"
+end = "2026-06-30"
+
+[[block]]
+name = "forward"
+kind = "forward"
+start = "2026-07-01"
+end = "2026-10-15"
