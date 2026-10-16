@@ -9,6 +9,11 @@ Why:
 Changed:
 ```
 
+## 2026-10-16: the "noise" market handed out free alpha
+What happened: in the first full-size dry run, plain equal-weight showed an alpha Sharpe of 1.1 against the market in a synthetic market with no planted edge. Every test still passed.
+Why: stock noise had a zero *log* mean, which means a positive *arithmetic* mean (+sigma^2/2 a day, about 5%/yr). Monthly rebalancing harvests that. Separately, the benchmark's open was timed differently from the stocks', which deflated measured beta.
+Changed: noise now has zero arithmetic mean, and the benchmark uses the same overnight/intraday split. Two tests pin both (the first fails on the old generator). Lesson: a test fixture that's meant to contain no edge needs its own test proving it.
+
 ## 2026-10-16: a lint failure slipped into a commit
 What happened: I ran `ruff check . | tail -3 && git commit ...`; ruff failed but the commit went through.
 Why: a pipe's exit status is the last command's (`tail`), so the failure was swallowed.

@@ -65,7 +65,9 @@ def generate(root: Path | str, config: SyntheticConfig | None = None) -> dict:
 
     beta = rng.uniform(0.5, 1.5, n)
     idio_vol = rng.uniform(0.01, 0.03, n)
-    eps = rng.normal(0.0, 1.0, (n_days, n)) * idio_vol
+    # Idiosyncratic noise with zero *arithmetic* mean. A zero log mean would hand
+    # every stock a free +sigma^2/2 a day, which rebalancing harvests as fake alpha.
+    eps = rng.normal(0.0, 1.0, (n_days, n)) * idio_vol - 0.5 * idio_vol**2
     log_ret = mkt[:, None] * beta[None, :] + eps
 
     # Volume shock z: visible in today's volume, optionally predicts tomorrow.
@@ -129,8 +131,9 @@ def generate(root: Path | str, config: SyntheticConfig | None = None) -> dict:
         )
     stocks = pl.concat(rows)
 
+    # Same overnight/intraday split as the stocks, so open-to-open returns line up.
     mkt_close = 100 * np.exp(np.cumsum(mkt))
-    mkt_open = np.concatenate([[100.0], mkt_close[:-1]]) * np.exp(rng.normal(0, 0.001, n_days))
+    mkt_open = np.concatenate([[100.0], mkt_close[:-1]]) * np.exp(0.3 * mkt)
     etf = pl.DataFrame(
         {
             "date": days,
