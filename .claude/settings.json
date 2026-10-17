@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(lucky vault:*)",
+      "Bash(uv run lucky vault:*)",
+      "Bash(lucky freeze:*)",
+      "Bash(uv run lucky freeze:*)",
+      "Read(./runs/**)"
+    ]
+  }
+}
