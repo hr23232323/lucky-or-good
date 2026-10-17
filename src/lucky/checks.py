@@ -9,6 +9,7 @@ check is what actually proves causality for the dates tested.
 from __future__ import annotations
 
 import ast
+import re
 from dataclasses import dataclass
 
 import numpy as np
@@ -34,6 +35,7 @@ BANNED_CALLS = {
     "eval",
     "exec",
     "exit",
+    "getattr",
     "globals",
     "input",
     "locals",
@@ -52,8 +54,31 @@ BANNED_METHODS = {
     "read_html",
     *(f"read_{x}" for x in _IO_FORMATS),
     *(f"to_{x}" for x in _IO_FORMATS),
+    # numpy file I/O
+    "fromfile",
+    "genfromtxt",
+    "load",
+    "loadtxt",
+    "memmap",
+    "save",
+    "savetxt",
+    "savez",
+    "savez_compressed",
+    "tofile",
+    # pandas I/O objects and string evaluation
+    "ExcelFile",
+    "ExcelWriter",
+    "HDFStore",
+    "eval",
 }
+# Submodules that lead to file I/O or compiled code.
+BANNED_MODULE_ATTRS = {"compat", "ctypeslib", "f2py", "io"}
 REQUIRED_META = {"name", "hypothesis", "expected_sign"}
+
+# Strategies are rules over features. A date or a ticker in the code is the
+# model's memory of history leaking in ("avoid 2008", "hold NVDA").
+DATE_LITERAL = re.compile(r"^\s*(19|20)\d{2}([-/.]\d{1,2}|\d{4})")
+TICKER_LITERAL = re.compile(r"^[A-Z][A-Z0-9]{0,5}([.-][A-Z0-9]+)*$")
 
 
 @dataclass(frozen=True)
@@ -72,6 +97,21 @@ def _is_negative(node: ast.AST) -> bool:
     return isinstance(node, ast.Constant) and isinstance(node.value, int | float) and node.value < 0
 
 
+def _selects_columns(node: ast.AST, parent: dict) -> bool:
+    """Is this string used to pick columns (a subscript, a literal list, a comparison)?"""
+    cur = node
+    while cur in parent:
+        up = parent[cur]
+        if isinstance(up, ast.Subscript) and cur is up.slice:
+            return True
+        if isinstance(up, ast.Compare | ast.List | ast.Tuple | ast.Set):
+            return True
+        if isinstance(up, ast.stmt | ast.Call | ast.Dict | ast.keyword):
+            return False
+        cur = up
+    return False
+
+
 def static_check(source: str) -> list[Violation]:
     """Reject strategy source that breaks the rules. Empty list means it passed."""
     try:
@@ -83,7 +123,24 @@ def static_check(source: str) -> list[Violation]:
     def bad(node, rule, detail):
         out.append(Violation(getattr(node, "lineno", 0), rule, detail))
 
+    parent: dict[ast.AST, ast.AST] = {}
     for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parent[child] = node
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            bad(node, "class", "strategies are functions; classes aren't allowed")
+        elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith(
+            "__"
+        ):
+            bad(node, "dunder", f"def {node.name}")
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if DATE_LITERAL.match(node.value):
+                bad(node, "date-literal", f"'{node.value}': use rules, not calendar dates")
+            elif TICKER_LITERAL.match(node.value) and _selects_columns(node, parent):
+                bad(node, "ticker-literal", f"'{node.value}': use rules, not named stocks")
+
         if isinstance(node, ast.Import | ast.ImportFrom):
             names = [a.name for a in node.names] if isinstance(node, ast.Import) else [node.module]
             for name in names:
@@ -96,6 +153,10 @@ def static_check(source: str) -> list[Violation]:
                 bad(node, "dunder", node.attr)
             if node.attr in BANNED_METHODS:
                 bad(node, "banned-method", node.attr)
+            if node.attr in BANNED_MODULE_ATTRS:
+                bad(node, "banned-module-attr", node.attr)
+            if node.attr == "year":
+                bad(node, "calendar-year", "rules can't depend on which year it is")
         elif isinstance(node, ast.Call):
             fn = node.func
             if isinstance(fn, ast.Attribute) and fn.attr == "shift":

@@ -17,6 +17,7 @@ import tempfile
 import traceback
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from .data import Panel
@@ -63,7 +64,14 @@ def _child(path: str, panel_file: str, until, queue) -> None:
         w = module.weights(panel)
         if not isinstance(w, pd.DataFrame):
             raise TypeError(f"weights() must return a DataFrame, got {type(w).__name__}")
-        queue.put(("ok", w))
+        # Rebuild as a plain float DataFrame so nothing defined by the strategy
+        # (a subclass, a custom pickle hook) travels back to the judge.
+        clean = pd.DataFrame(
+            np.asarray(w, dtype=float),
+            index=pd.DatetimeIndex(w.index),
+            columns=[str(c) for c in w.columns],
+        )
+        queue.put(("ok", clean))
     except BaseException:  # noqa: BLE001 - report anything back to the parent
         queue.put(("error", traceback.format_exc(limit=5)))
 

@@ -52,5 +52,8 @@ Market data is licensed (MarketParquet) and is never committed. Set `LUCKY_DATA_
 ## Things agents get wrong here
 
 - Using `shift(-1)`, `bfill`, centred rolling windows or full-sample normalisation in a strategy. The checks reject these; don't fight them.
+- Writing dates, years or tickers into a strategy. That's memory of history, not a rule; the checks reject it.
 - Treating a good discovery Sharpe as a finding. It is a hypothesis until it survives validation, the trial-count deflation and a vault.
 - Forgetting that statistics cannot detect look-ahead. Structural guards come first.
+- Weakening a check to make a test pass. If an honest strategy trips a check, record why in `LEARNINGS.md` and narrow the check with a test on both sides (see the month-end calendar entry).
+- Piping test or lint commands before `&&` (`pytest | tail && git commit`). The pipe hides the failure.

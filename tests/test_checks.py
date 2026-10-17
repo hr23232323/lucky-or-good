@@ -44,6 +44,16 @@ def test_banned_patterns(snippet, rule):
     assert rule in rules(OK + "\n" + snippet + "\n")
 
 
+def test_frequency_codes_are_not_tickers():
+    src = OK + (
+        "def g(panel):\n"
+        "    m = panel.dates.to_series().groupby(panel.dates.to_period('M')).max()\n"
+        "    w = panel.close.resample('W-FRI').last()\n"
+        "    return panel.close.rank(axis=1, method='first'), m, w\n"
+    )
+    assert static_check(src) == []
+
+
 def test_contract_required():
     assert "contract" in rules("META = {'name': 'x', 'hypothesis': 'y', 'expected_sign': '+'}")
     assert "contract" in rules("def weights(panel): return None")

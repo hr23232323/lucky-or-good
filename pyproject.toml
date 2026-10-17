@@ -39,3 +39,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# The cheat catalogue reads best as one row per cheat.
+"tests/test_anticheat.py" = ["E501"]
