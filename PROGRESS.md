@@ -15,6 +15,7 @@ Goal: an honest playground for LLM strategy research (see `intents/000-goal.md`)
 | 009 | Baseline strategies and judge CLI | done |
 | 010 | Anti-cheat test suite | done |
 | 011 | Propose-strategy skill for local agents | done |
+| 012 | Season report page | done |
 
 ## Next
 

@@ -23,6 +23,7 @@ uv sync                          # install
 uv run pytest                    # all tests; must pass before every commit
 uv run ruff check . && uv run ruff format --check .
 uv run lucky --help              # judge CLI
+uv run lucky report              # season page (never with --include-sealed as a proposer)
 ```
 
 ## Layout

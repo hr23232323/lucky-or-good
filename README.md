@@ -31,6 +31,8 @@ History is split into sealed periods:
 
 The design and its limits are in [`docs/design.md`](docs/design.md).
 
+`lucky report` turns a season into one self-contained HTML page: every strategy's Sharpe against the noise bar, baselines against candidates, growth-of-$1 curves, every trial, and why rejected strategies were rejected. Vault results stay hidden unless a human adds `--include-sealed`. The page is built from the season folder alone, so it can be shared without the licensed data.
+
 A report looks like this (a baseline on the synthetic market):
 
 ```
@@ -55,6 +57,7 @@ uv run lucky season new runs/try --periods config/periods/synthetic.toml \
 export LUCKY_SEASON=runs/try
 uv run lucky judge strategies/baselines/momentum_12_1.py
 uv run lucky ledger
+uv run lucky report     # one HTML page with every strategy: runs/try/report.html
 ```
 
 `data/` and `runs/` are git-ignored. The synthetic market has a planted edge you can try to find; the fixture in `tests/strategies/volume_shock.py` shows what finding it looks like.

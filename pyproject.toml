@@ -43,3 +43,5 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 [tool.ruff.lint.per-file-ignores]
 # The cheat catalogue reads best as one row per cheat.
 "tests/test_anticheat.py" = ["E501"]
+# SVG/HTML markup in f-strings reads worse when wrapped.
+"src/lucky/report.py" = ["E501"]

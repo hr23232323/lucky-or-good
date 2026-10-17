@@ -7,6 +7,7 @@
     lucky freeze FILE                    pin a strategy before opening a vault
     lucky vault FILE --block NAME        one look at a sealed block (humans only)
     lucky ledger                         list trials in the season
+    lucky report [--include-sealed]      one HTML page with every strategy
     lucky verify                         check the ledger's hash chain
 
 The season comes from --season or the LUCKY_SEASON environment variable.
@@ -138,6 +139,14 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("file")
     v.add_argument("--block", required=True)
 
+    r = sub.add_parser("report", help="write one HTML page with every strategy in the season")
+    r.add_argument("--out", help="output file (default: report.html in the season folder)")
+    r.add_argument(
+        "--include-sealed",
+        action="store_true",
+        help="show true validation and vault results (humans, after vaults are opened)",
+    )
+
     sub.add_parser("ledger", help="list trials in the season")
     sub.add_parser("verify", help="check the ledger's hash chain")
 
@@ -188,6 +197,13 @@ def main(argv: list[str] | None = None) -> int:
             print(prob)
         print("ledger intact" if not problems else "LEDGER TAMPERED")
         return 1 if problems else 0
+
+    if args.cmd == "report":
+        from .report import write
+
+        out = write(season, args.out, include_sealed=args.include_sealed)
+        print(f"Wrote {out}")
+        return 0
 
     if args.cmd == "ledger":
         print(f"{'#':>5}  {'block':<10} {'status':<9} {'sharpe':>6} {'t':>5} {'dsr':>5}  file")

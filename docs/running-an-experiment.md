@@ -60,5 +60,6 @@ Stronger isolation (an agent that can submit strategies but never touch the data
 ## 6. Publish
 
 - `uv run lucky verify` must print `ledger intact`.
+- `uv run lucky report --include-sealed` writes `runs/season-1/report-sealed.html`: the page to link from a write-up. Only make it after the vaults you intend to open are opened.
 - Share `runs/season-1/` (ledger, returns, sealed results, frozen files), the notebook, the transcripts, and the judge commit. These contain your results but not the licensed price data.
 - Report every strategy tried, the baselines alongside the AI's, and the failures. The interesting result is usually how many things looked good before they didn't.

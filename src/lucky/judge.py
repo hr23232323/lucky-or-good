@@ -142,10 +142,13 @@ class Judge:
             "span": f"{block.start.date()} to {block.end.date()}",
             "universe": f"top {self.season.top_n} by liquidity",
         }
+        try:
+            base["meta"] = read_meta(source)
+        except (SyntaxError, ValueError):
+            base["meta"] = {}
         violations = static_check(source)
         if violations:
             return {**base, "status": "rejected", "violations": [str(v) for v in violations]}
-        base["meta"] = read_meta(source)
         panel = self.panel(block)
         pfile = self.panel_file(block)
         try:

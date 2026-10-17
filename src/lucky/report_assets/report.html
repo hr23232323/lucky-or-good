@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title}</title><style>{css}</style></head>
+<body><div class="viz-root"><main>
+<h1>Season {name}</h1>
+<p class="sub">{meta}</p>
+<div class="badges">{integrity}{sealed_flag}</div>
+{tiles}
+
+<h2>Every strategy, against the noise bar</h2>
+<p class="lede">Net Sharpe ratio in the discovery period, after costs. The dashed line is
+what the best of this many strategies would be expected to reach by luck alone. Anything left
+of it is indistinguishable from noise.</p>
+<div class="card">{sharpe}
+<div class="legend"><span><span class="key baseline"></span>textbook baseline</span>
+<span><span class="key candidate"></span>proposed candidate</span></div></div>
+
+<h2>Growth of $1 in discovery</h2>
+<p class="lede">Each strategy's net returns compounded over the discovery period, against the
+benchmark. Hover to read values at a date.</p>
+<div class="card">{equity}
+<div class="legend"><span><span class="key line baseline"></span>baselines</span>
+<span><span class="key line candidate"></span>candidates</span>
+<span><span class="key line bench"></span>benchmark</span></div>
+<p class="note">{equity_note}</p></div>
+
+<h2>Sealed periods</h2>
+<p class="lede">Vault and forward blocks are opened by a human, once per frozen strategy.
+A real edge should hold up there; most don't.</p>
+{vaults}
+
+<h2>Every trial</h2>
+<p class="lede">The full ledger: reruns, validation questions and failures included. Validation
+answers are rounded and noised on purpose.</p>
+{table}
+
+<h2>Rejected and failed</h2>
+{failures}
+
+<h2>Periods</h2>
+{periods}
+
+<footer>Generated {generated} by <code>lucky report</code> from the season's ledger.
+Research, not financial advice.</footer>
+</main></div><div id="tip" role="tooltip"></div>
+<script>{js}</script></body></html>
