@@ -556,7 +556,10 @@ def _periods(season: Season) -> str:
         f"<td>{b.start.date()} to {b.end.date()}</td></tr>"
         for b in sorted(season.periods.blocks, key=lambda b: b.start)
     )
-    return f'<table class="periods"><thead><tr><th>block</th><th>kind</th><th>dates</th></tr></thead><tbody>{rows}</tbody></table>'
+    return (
+        '<div class="table-wrap"><table class="periods"><thead><tr><th>block</th><th>kind</th>'
+        f"<th>dates</th></tr></thead><tbody>{rows}</tbody></table></div>"
+    )
 
 
 def build(season: Season, include_sealed: bool = False) -> str:
@@ -576,7 +579,7 @@ def build(season: Season, include_sealed: bool = False) -> str:
     generated = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     template = (ASSETS / "report.html").read_text()
     return template.format(
-        title=_esc(f"Season {s.name}"),
+        title=_esc(f"lucky-or-good season {s.name}"),
         name=_esc(s.name),
         meta=_esc(
             f"Proposing model {s.model} (training cutoff {s.model_cutoff}) · universe: top "

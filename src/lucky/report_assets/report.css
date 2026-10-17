@@ -1,25 +1,29 @@
-.viz-root{color-scheme:light;--page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;
+/* Layout: one 880px reading column; summary tiles, then charts, then the full ledger. */
+:root{color-scheme:light;--page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;
 --muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--ring:rgba(11,11,11,.10);
---baseline:#2a78d6;--candidate:#eb6834;--good:#0ca30c;--warn:#fab219;--critical:#d03b3b}
-@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])) .viz-root{
+--baseline:#2a78d6;--candidate:#eb6834;--good:#0ca30c;--warn-ink:#9a6700;--critical:#d03b3b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
 color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink-2:#c3c2b7;--muted:#898781;
---grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10);--baseline:#3987e5;--candidate:#d95926}}
-:root[data-theme="dark"] .viz-root{color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;
+--grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10);--baseline:#3987e5;--candidate:#d95926;
+--warn-ink:#fab219}}
+:root[data-theme="dark"]{color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;
 --ink-2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10);
---baseline:#3987e5;--candidate:#d95926}
+--baseline:#3987e5;--candidate:#d95926;--warn-ink:#fab219}
 *{box-sizing:border-box}
-body{margin:0;background:var(--page)}
+body{margin:0;background:var(--page);color:var(--ink)}
 .viz-root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);
-background:var(--page);padding:32px 16px 64px;line-height:1.5}
+background:var(--page);padding-block:32px 64px;line-height:1.5;
+padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 main{max-width:880px;margin:0 auto}
-h1{font-size:28px;margin:0 0 4px;font-weight:650}
+h1{font-size:28px;margin:0 0 4px;font-weight:650;text-wrap:balance}
 h2{font-size:18px;margin:40px 0 4px;font-weight:600}
 .sub,.lede{color:var(--ink-2);margin:0 0 8px}
 .lede{max-width:68ch}
 .badges{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 24px}
 .card{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:16px;margin-top:12px}
-.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
-.tile{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:14px}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:600px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile{min-width:0;background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:14px}
 .tile-value{font-size:28px;font-weight:650}
 .tile-label{font-size:13px;font-weight:600;color:var(--ink-2)}
 .tile-note{font-size:12px;color:var(--muted);margin-top:4px}
@@ -51,14 +55,13 @@ svg{width:100%;height:auto;display:block;overflow:visible}
 .status{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;
 border:1px solid var(--ring);white-space:nowrap}
 .status.scored{color:var(--good)}.status.rejected,.status.error{color:var(--critical)}
-.status.lookahead{color:#b07800}.status.neutral{color:var(--ink-2)}
+.status.lookahead{color:var(--warn-ink)}.status.neutral{color:var(--ink-2)}
 .table-wrap{overflow-x:auto;margin-top:12px;background:var(--surface);border:1px solid var(--ring);border-radius:12px}
 table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
 th{font-size:12px;font-weight:600;color:var(--ink-2);text-align:left;padding:10px 10px;border-bottom:1px solid var(--grid);white-space:nowrap}
 td{padding:8px 10px;border-bottom:1px solid var(--grid);vertical-align:top;white-space:nowrap}
 td:nth-child(2){white-space:normal;min-width:220px}
 .sname{font-weight:600}.hyp{font-size:12px;color:var(--muted);max-width:42ch}
-table.periods{background:var(--surface);border:1px solid var(--ring);border-radius:12px;margin-top:12px}
 .failures{list-style:none;padding:0;margin:12px 0 0}
 .failures li{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:10px 14px;margin-bottom:8px}
 .why{font-size:12px;color:var(--ink-2);margin-top:4px;font-family:ui-monospace,monospace;white-space:pre-wrap}
