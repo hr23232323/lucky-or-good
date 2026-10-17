@@ -120,6 +120,22 @@ def test_vault_needs_freeze_and_opens_once(judge, tmp_path):
     assert judge.ledger.verify() == []
 
 
+PERFORMANCE_KEYS = {"metrics", "deflation", "sign_matches", "extra_lag_sharpe", "notes"}
+
+
+def test_sealed_results_never_reach_the_public_ledger(judge, tmp_path):
+    """Validation and vault entries must not leak performance to proposers via the ledger."""
+    path = strat(tmp_path, "volume_shock")
+    judge.evaluate(path)
+    judge.evaluate(path, "validation")
+    judge.freeze(path)
+    judge.open_sealed(path, "vault_b")
+    for e in judge.ledger.entries():
+        if e.get("block_kind") in {"validation", "vault", "forward"}:
+            leaked = PERFORMANCE_KEYS & set(e)
+            assert not leaked, f"{e['block']} entry leaks {leaked}"
+
+
 def test_editing_after_freeze_voids_it(judge, tmp_path):
     path = strat(tmp_path, "volume_shock")
     judge.evaluate(path)

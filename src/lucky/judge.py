@@ -32,6 +32,21 @@ NOISE = 0.25  # Laplace scale (annual Sharpe units) for validation answers
 STEP = 0.25  # validation answers are rounded to this
 
 
+# Fields of a validation/vault/forward outcome that may appear in the public ledger.
+SEALED_PUBLIC_FIELDS = {
+    "file",
+    "hash",
+    "block",
+    "block_kind",
+    "span",
+    "universe",
+    "meta",
+    "status",
+    "violations",
+    "lookahead",
+}
+
+
 class GateError(RuntimeError):
     """The gate refused: wrong order, budget spent, or a second look."""
 
@@ -169,10 +184,10 @@ class Judge:
     def _log(self, outcome: dict, sealed: bool, extra: dict | None = None) -> dict:
         returns = outcome.pop("_returns", None)
         public = dict(outcome)
-        if sealed and outcome.get("status") == "scored":
-            # True numbers go to sealed/; the ledger only keeps what the proposer was told.
-            for k in ("metrics", "extra_lag_sharpe", "notes"):
-                public.pop(k, None)
+        if sealed:
+            # True results go to sealed/. The ledger keeps an allow-list of fields that say
+            # nothing about performance, so anything added to reports later stays sealed.
+            public = {k: v for k, v in outcome.items() if k in SEALED_PUBLIC_FIELDS}
         record = self.ledger.append({"kind": "trial", **public, **(extra or {})})
         if returns is not None:
             folder = self.season.dir / ("sealed" if sealed else "returns")
@@ -203,7 +218,20 @@ class Judge:
                 ),
                 "deflated_sharpe": round(dsr, 3),
             }
+            self._save_benchmark(block)
         return self._log(outcome, sealed=False)
+
+    def _save_benchmark(self, block: Block) -> None:
+        """Keep the benchmark's returns for the block next to the trials (for reports)."""
+        path = self.season.dir / "returns" / f"benchmark_{block.name}.parquet"
+        if path.exists():
+            return
+        bench = self.benchmark(block)
+        if bench is None:
+            return
+        path.parent.mkdir(exist_ok=True)
+        bench = bench.loc[block.start : block.end].rename("return")
+        bench.to_frame().to_parquet(path)
 
     def _validate(self, path: Path, block: Block) -> dict:
         source = path.read_text()

@@ -9,6 +9,11 @@ Why:
 Changed:
 ```
 
+## 2026-10-16: sealed results leaked into the public ledger
+What happened: while building the season report, the vault rows showed a deflated Sharpe. The ledger hid vault and validation Sharpe ratios but kept the deflated Sharpe and the "matched expected sign" flag, which `lucky ledger` prints to proposers. Both say how a sealed period went.
+Why: sealing used a deny-list of fields to remove. Every field added later (deflation, sign check) leaked by default.
+Changed: sealed entries now keep an allow-list of fields that say nothing about performance (`SEALED_PUBLIC_FIELDS`), with a test that fails if any performance field appears on a validation, vault or forward entry. Lesson: for anything sealed, allow-list. Found by looking at a rendered page, not by a test.
+
 ## 2026-10-16: retro on the first build session
 What happened: the judge went from empty repo to a tested v0 in one session, ending with a fresh agent running the proposer loop.
 What worked: writing the cheat catalogue as tests before hardening (10 of 22 cheats got through at first, so the tests were really testing something); asking an outside agent to use the skill and report friction (ten useful points in one run); keeping a synthetic market where the truth is known.
