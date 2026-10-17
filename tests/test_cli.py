@@ -18,7 +18,7 @@ def test_full_loop_through_the_cli(tmp_path, edge_market, capsys):
     assert main(["check", str(strat)]) == 0
     assert main([*s, "judge", str(strat)]) == 0
     out = capsys.readouterr().out
-    assert "Sharpe" in out and "strategies tried" in out
+    assert "Sharpe" in out and "tried in this season" in out
 
     assert main([*s, "judge", str(strat), "--block", "validation"]) == 0
     assert "validation:" in capsys.readouterr().out

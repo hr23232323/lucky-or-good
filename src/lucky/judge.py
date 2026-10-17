@@ -119,7 +119,14 @@ class Judge:
         """Checks, runs and scores. Returns a dict with status and (if scored) results."""
         source = path.read_text()
         h = content_hash(source)
-        base = {"file": str(path), "hash": h, "block": block.name, "block_kind": block.kind}
+        base = {
+            "file": str(path),
+            "hash": h,
+            "block": block.name,
+            "block_kind": block.kind,
+            "span": f"{block.start.date()} to {block.end.date()}",
+            "universe": f"top {self.season.top_n} by liquidity",
+        }
         violations = static_check(source)
         if violations:
             return {**base, "status": "rejected", "violations": [str(v) for v in violations]}
@@ -144,10 +151,15 @@ class Judge:
         res = backtest(panel, w).between(block.start, block.end)
         lagged = backtest(panel, w.shift(1)).between(block.start, block.end)
         metrics = summary(res, self.benchmark(block))
+        expected = str(base["meta"].get("expected_sign", "")).strip()
+        sign = {}
+        if expected in {"+", "-"}:
+            sign = {"sign_matches": (metrics["sharpe"] > 0) == (expected == "+")}
         return {
             **base,
             "status": "scored",
             "metrics": metrics,
+            **sign,
             "lookahead": lookahead,
             "extra_lag_sharpe": round(sharpe(lagged.returns), 3),
             "notes": res.notes,

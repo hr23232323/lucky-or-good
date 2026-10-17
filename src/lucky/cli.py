@@ -34,6 +34,8 @@ def _season(args) -> Season:
 
 def _fmt_report(rec: dict) -> str:
     lines = [f"#{rec.get('seq', '?')}  {rec.get('file')}  [{rec.get('block')}]  {rec['status']}"]
+    if rec.get("span"):
+        lines.append(f"  {rec['block']}: {rec['span']}, {rec.get('universe', '')}")
     meta = rec.get("meta") or {}
     if meta.get("name"):
         lines.append(f"  {meta['name']}: {meta.get('hypothesis', '')}")
@@ -69,10 +71,16 @@ def _fmt_report(rec: dict) -> str:
                 f"alpha Sharpe {m.get('alpha_sharpe', 0):.2f}"
             )
         lines.append(f"  with one extra day of lag: Sharpe {rec.get('extra_lag_sharpe', 0):.2f}")
+        if "sign_matches" in rec:
+            exp = (rec.get("meta") or {}).get("expected_sign")
+            verdict = "matches" if rec["sign_matches"] else "is the OPPOSITE of"
+            lines.append(f"  result {verdict} the expected sign ({exp})")
     d = rec.get("deflation")
     if d and "strategies_tried" in d:
+        n = d["strategies_tried"]
+        tried = f"{n} {'strategy' if n == 1 else 'strategies'} tried in this season"
         lines.append(
-            f"  {d['strategies_tried']} strategies tried in this season; noise alone would be "
+            f"  {tried}; noise alone would be "
             f"expected to reach Sharpe {d['best_noise_sharpe_expected']:.2f}. "
             f"Deflated Sharpe: {d['deflated_sharpe']:.2f}"
         )
@@ -182,15 +190,27 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if problems else 0
 
     if args.cmd == "ledger":
+        print(f"{'#':>5}  {'block':<10} {'status':<9} {'sharpe':>6} {'t':>5} {'dsr':>5}  file")
         for e in season.ledger.entries():
-            if e.get("kind") == "trial":
+            kind = e.get("kind")
+            if kind == "season":
+                st = e.get("settings", {})
+                print(
+                    f"{e['seq']:>5}  season '{st.get('name')}': model {st.get('model')}, "
+                    f"cutoff {st.get('model_cutoff')}, top {st.get('top_n')}"
+                )
+            elif kind == "trial":
                 m = e.get("metrics") or {}
                 ans = e.get("answer") or {}
-                shown = m.get("sharpe", ans.get("sharpe", ""))
-                name = (e.get("meta") or {}).get("name", Path(e["file"]).stem)
-                print(f"{e['seq']:>5}  {e['block']:<10} {e['status']:<9} {shown!s:>6}  {name}")
-            elif e.get("kind") == "freeze":
-                print(f"{e['seq']:>5}  frozen     {e['hash']}  {e.get('note', '')}")
+                sharpe_ = m.get("sharpe", ans.get("sharpe", ""))
+                t = m.get("t_stat", "")
+                dsr = (e.get("deflation") or {}).get("deflated_sharpe", "")
+                print(
+                    f"{e['seq']:>5}  {e['block']:<10} {e['status']:<9} {sharpe_!s:>6} {t!s:>5} "
+                    f"{dsr!s:>5}  {e['file']}"
+                )
+            elif kind == "freeze":
+                print(f"{e['seq']:>5}  frozen     {e['hash']}  {e['file']}  {e.get('note', '')}")
         return 0
 
     judge = Judge(season)

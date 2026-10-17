@@ -38,6 +38,8 @@ def test_discovery_scores_an_honest_strategy(judge, tmp_path):
     assert rec["metrics"]["sharpe"] > 1.0
     assert rec["deflation"]["strategies_tried"] == 1
     assert "extra_lag_sharpe" in rec
+    assert rec["sign_matches"] is True  # expected "+", and it made money
+    assert rec["span"].startswith("2022-01-03") and "top 30" in rec["universe"]
     assert (judge.season.dir / "returns" / f"{rec['seq']:05d}.parquet").exists()
     assert judge.ledger.verify() == []
 
