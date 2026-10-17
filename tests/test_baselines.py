@@ -27,6 +27,11 @@ def test_there_are_baselines():
     assert len(BASELINES) >= 5
 
 
+def test_proposer_template_passes_checks():
+    template = ROOT / ".claude" / "skills" / "propose-strategy" / "template.py"
+    assert static_check(template.read_text()) == []
+
+
 @pytest.mark.parametrize("path", BASELINES, ids=lambda p: p.stem)
 def test_baseline_passes_static_checks(path):
     assert static_check(path.read_text()) == []
