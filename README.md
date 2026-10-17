@@ -64,13 +64,17 @@ uv run lucky report     # one HTML page with every strategy: runs/try/report.htm
 
 ## Real data
 
-The experiments use [MarketParquet](https://marketparquet.com): split-adjusted daily bars for US stocks and ETFs since 2000, including about 8,500 delisted tickers, for a one-time $79. It's licensed, so it isn't in this repo and can't be shared. Buy a copy, then:
+The experiments use [MarketParquet](https://marketparquet.com): split-adjusted daily bars for US stocks and ETFs since 2000, including about 8,500 delisted tickers, for a one-time $79. It's licensed, so it isn't in this repo and can't be shared. Buy the archive, create an API key on your account page, then:
 
 ```bash
-export LUCKY_DATA_DIR=/path/to/marketparquet   # the folder containing by_date/
+read -s MARKETPARQUET_API_KEY && export MARKETPARQUET_API_KEY   # paste the key; stays out of shell history
+export LUCKY_DATA_DIR=~/marketparquet
+uv run lucky data download          # daily stocks + ETFs, 2000 to today; rerun any time to top up
 uv run lucky season new runs/season-1 --periods config/periods/marketparquet.toml \
     --model claude-opus-5-5 --cutoff 2026-06
 ```
+
+The download resumes where it left off, checks every file's size, and waits when the API asks it to. Add `--datasets stock_1hour etf_1hour` for hourly bars (several GB).
 
 Any data in the same layout (`by_date/stock_daily/YYYY-MM-DD.parquet` with `symbol, open, high, low, close, volume` and a `date` or `timestamp` column) works.
 

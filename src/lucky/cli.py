@@ -1,5 +1,6 @@
 """`lucky`: the command line for the judge.
 
+    lucky data download --dest DIR       fetch MarketParquet (key from $MARKETPARQUET_API_KEY)
     lucky synthetic DIR                  make a fake market to try things out
     lucky season new DIR --periods FILE  start a research season
     lucky check FILE                     static checks only
@@ -112,6 +113,17 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--end", default="2026-10-15")
     s.add_argument("--seed", type=int, default=0)
 
+    dt = sub.add_parser("data", help="get market data")
+    dtsub = dt.add_subparsers(dest="data_cmd", required=True)
+    dl = dtsub.add_parser(
+        "download", help="download MarketParquet files (key from $MARKETPARQUET_API_KEY)"
+    )
+    dl.add_argument("--dest", default=os.environ.get("LUCKY_DATA_DIR"), help="data root")
+    dl.add_argument("--datasets", nargs="+", default=["stock_daily", "etf_daily"])
+    dl.add_argument("--start-year", type=int, default=2000)
+    dl.add_argument("--end-year", type=int, default=None)
+    dl.add_argument("--workers", type=int, default=8)
+
     sn = sub.add_parser("season", help="manage research seasons")
     snsub = sn.add_subparsers(dest="season_cmd", required=True)
     new = snsub.add_parser("new", help="start a season")
@@ -165,6 +177,28 @@ def main(argv: list[str] | None = None) -> int:
             f"  lucky season new runs/try --periods config/periods/synthetic.toml --data {args.dir}"
         )
         return 0
+
+    if args.cmd == "data":
+        from .download import DownloadError, download
+
+        if not args.dest:
+            sys.exit("Pass --dest or set LUCKY_DATA_DIR.")
+        try:
+            result = download(
+                args.dest, args.datasets, args.start_year, args.end_year, args.workers
+            )
+        except DownloadError as e:
+            sys.exit(str(e))
+        gb = result.bytes / 1e9
+        print(
+            f"Done: {result.downloaded} downloaded ({gb:.2f} GB), {result.skipped} already "
+            f"present, {len(result.failed)} failed."
+        )
+        for line in result.failed[:20]:
+            print("  failed:", line)
+        if result.failed:
+            print("Run the same command again to retry just the failures.")
+        return 1 if result.failed else 0
 
     if args.cmd == "season":
         if not args.data:

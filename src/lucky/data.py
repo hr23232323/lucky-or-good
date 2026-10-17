@@ -12,6 +12,7 @@ history and carry a ``-DELISTED`` suffix.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
@@ -20,6 +21,7 @@ import pandas as pd
 
 FIELDS = ("open", "high", "low", "close", "volume")
 DELISTED_SUFFIX = "-DELISTED"
+DATE_IN_NAME = re.compile(r"\d{4}-\d{2}-\d{2}$")
 
 
 def data_dir() -> Path:
@@ -91,10 +93,12 @@ class MarketData:
         hi = pd.Timestamp(end) if end is not None else None
         out = []
         for path in sorted(self.dir.glob("*.parquet")):
-            try:
-                day = pd.Timestamp(path.stem)
-            except ValueError:
+            # Accept our layout (2024-01-02.parquet) and MarketParquet's own names
+            # (stock_daily_2024-01-02.parquet).
+            match = DATE_IN_NAME.search(path.stem)
+            if not match:
                 continue
+            day = pd.Timestamp(match.group(0))
             if (lo is None or day >= lo) and (hi is None or day <= hi):
                 out.append(path)
         return out
