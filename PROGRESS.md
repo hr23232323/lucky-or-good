@@ -14,7 +14,13 @@ Goal: an honest playground for LLM strategy research (see `intents/000-goal.md`)
 | 008 | Look-ahead and static checks | done |
 | 009 | Baseline strategies and judge CLI | done |
 | 010 | Anti-cheat test suite | done |
-| 011 | Propose-strategy skill for local agents | active |
+| 011 | Propose-strategy skill for local agents | done |
+
+## Next
+
+1. Get the MarketParquet archive and check load times and the reader on the full history (#9).
+2. Season 1: score the baselines on real data, then a first proposer run, pre-registered as in `docs/running-an-experiment.md`.
+3. Factor attribution (#2) before any write-up, so "alpha" means alpha.
 
 ## Not yet
 

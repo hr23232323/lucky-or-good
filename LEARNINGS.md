@@ -9,6 +9,12 @@ Why:
 Changed:
 ```
 
+## 2026-10-16: retro on the first build session
+What happened: the judge went from empty repo to a tested v0 in one session, ending with a fresh agent running the proposer loop.
+What worked: writing the cheat catalogue as tests before hardening (10 of 22 cheats got through at first, so the tests were really testing something); asking an outside agent to use the skill and report friction (ten useful points in one run); keeping a synthetic market where the truth is known.
+What didn't: three of the bugs found were in the test fixture itself (free alpha, benchmark timing, smooth failures), and all three passed every test until a person or an agent looked at the numbers. Unit tests check what we thought of; reading real output finds the rest.
+Changed: keep doing one "look at the numbers" pass per piece of work, and a fresh-agent dry run after any change to the skill.
+
 ## 2026-10-16: an agent's dry run found a fake effect in the fake market
 What happened: in the first dry run of the proposer skill, a "short lottery stocks" strategy lost money at t = -3.4 on the synthetic market, where the only planted effect is a volume shock.
 Why: failing companies slid down smoothly, so they looked like calm, low-MAX stocks right before their -30% terminal loss. Without delistings the result dropped to t = -1.85, i.e. noise.
