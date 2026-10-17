@@ -49,6 +49,18 @@ def test_market_benchmark_lines_up_with_stocks(noise_market):
     assert ew.corr(mkt.shift(-1) / mkt - 1) > 0.8
 
 
+def test_failing_companies_get_volatile_before_delisting(noise_market, noise_truth):
+    """A smooth slide made calm stocks look like the ones that fail: a fake effect."""
+    p = MarketData(noise_market).load()
+    ratios = []
+    for sym, info in noise_truth["delisted"].items():
+        if info["kind"] != "failure":
+            continue
+        r = (p.close[sym] / p.open[sym]).apply(np.log).dropna()
+        ratios.append(r.iloc[-40:].std() / r.iloc[-300:-80].std())
+    assert ratios and np.median(ratios) > 1.5
+
+
 def test_truth_file_records_delistings(noise_truth):
     kinds = {v["kind"] for v in noise_truth["delisted"].values()}
     assert kinds <= {"failure", "merger"}

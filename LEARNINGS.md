@@ -9,6 +9,11 @@ Why:
 Changed:
 ```
 
+## 2026-10-16: an agent's dry run found a fake effect in the fake market
+What happened: in the first dry run of the proposer skill, a "short lottery stocks" strategy lost money at t = -3.4 on the synthetic market, where the only planted effect is a volume shock.
+Why: failing companies slid down smoothly, so they looked like calm, low-MAX stocks right before their -30% terminal loss. Without delistings the result dropped to t = -1.85, i.e. noise.
+Changed: failing companies now get distress-level volatility on the way down (as real ones do), with a test. Any delisting model creates some effect, so the synthetic module now says plainly it is a test rig, not a market model. Lesson: when a result surprises you on synthetic data, suspect the generator first; it's the one part with no outside check.
+
 ## 2026-10-16: the "noise" market handed out free alpha
 What happened: in the first full-size dry run, plain equal-weight showed an alpha Sharpe of 1.1 against the market in a synthetic market with no planted edge. Every test still passed.
 Why: stock noise had a zero *log* mean, which means a positive *arithmetic* mean (+sigma^2/2 a day, about 5%/yr). Monthly rebalancing harvests that. Separately, the benchmark's open was timed differently from the stocks', which deflated measured beta.

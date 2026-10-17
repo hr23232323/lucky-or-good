@@ -12,6 +12,11 @@ Layout written:  <root>/by_date/stock_daily/YYYY-MM-DD.parquet
 The planted edge: each stock has a daily volume shock z (visible in that day's
 volume). If ``edge > 0``, the next session's intraday log return gets
 ``edge * z`` added. A strategy that buys high-z stocks at the next open earns it.
+
+This is a test rig, not a model of a real market. Some effects exist by
+accident of construction: failing companies get volatile before they delist
+(as real ones do), so volatility- and lottery-style strategies interact with
+delistings. Don't read research conclusions off it.
 """
 
 from __future__ import annotations
@@ -96,7 +101,11 @@ def generate(root: Path | str, config: SyntheticConfig | None = None) -> dict:
         if rng.random() < cfg.failure_share:
             kinds[i] = "failure"
             span = min(60, last[i] - first[i])
-            intraday[last[i] - span + 1 : last[i] + 1, i] -= 1.0 / span  # ~-63% slide
+            window = slice(last[i] - span + 1, last[i] + 1)
+            # A ~-63% slide, with distress-level volatility on the way down. A smooth
+            # slide would make "calm" stocks look like the ones that fail, a fake effect.
+            extra = 2.0 * idio_vol[i]
+            intraday[window, i] += rng.normal(-0.5 * extra**2, extra, span) - 1.0 / span
         else:
             kinds[i] = "merger"
             overnight[last[i], i] += 0.2  # takeover premium on the final day
