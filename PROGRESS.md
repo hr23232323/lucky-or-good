@@ -16,6 +16,6 @@ Goal: an honest playground for LLM strategy research (see `intents/000-goal.md`)
 | 010 | Anti-cheat test suite | done |
 | 011 | Propose-strategy skill for local agents | active |
 
-## Not yet (tracked as GitHub issues once the core exists)
+## Not yet
 
-Dividends and total return. Factor attribution (Fama-French). PBO/CSCV. Hourly bars. Running the proposer in a sandbox with no data access. Leaderboard. Memory-vs-skill experiment.
+Tracked as [GitHub issues](https://github.com/hr23232323/lucky-or-good/issues): dividends (#1), factor attribution (#2), PBO (#3), judge as a separate service (#4), hourly bars (#5), point-in-time fundamentals (#6), leaderboard (#7), memory-vs-skill experiment (#8), full-archive performance (#9), ETF periods (#10), reused tickers (#11).
