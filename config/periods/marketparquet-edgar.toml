@@ -1,0 +1,35 @@
+# Periods for strategies that use per-stock earnings from SEC filings.
+#
+# XBRL financial data starts in 2009 (large companies) to 2011 (everyone), and a
+# trailing-twelve-month figure needs four quarters of it, so per-stock P/E only
+# exists from about 2010. There is no room for an early vault: the only sealed
+# block is the recent one, which sits inside the proposing model's training data.
+# Its name and dates match vault_b in marketparquet.toml.
+
+dataset = "marketparquet"
+warmup_days = 260
+
+[[block]]
+name = "discovery"
+kind = "discovery"
+start = "2011-01-03"
+end = "2017-12-29"
+
+[[block]]
+name = "validation"
+kind = "validation"
+start = "2018-01-02"
+end = "2019-12-31"
+
+[[block]]
+name = "vault_b"
+kind = "vault"
+start = "2020-01-02"
+end = "2026-06-30"
+note = "COVID crash, 2022 rate shock, 2023-25 rally. Inside the proposing model's training data."
+
+[[block]]
+name = "forward"
+kind = "forward"
+start = "2026-07-01"
+end = "2030-12-31"
