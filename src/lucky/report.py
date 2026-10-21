@@ -15,7 +15,14 @@ from pathlib import Path
 
 import pandas as pd
 
-from .metrics import DAYS, annual_return, expected_max_sharpe, max_drawdown, sharpe
+from .metrics import (
+    DAYS,
+    annual_return,
+    deflated_sharpe,
+    expected_max_sharpe,
+    max_drawdown,
+    sharpe,
+)
 from .season import Season
 
 BASELINE, CANDIDATE = "baseline", "candidate"
@@ -94,6 +101,9 @@ def gather(season: Season, include_sealed: bool = False) -> dict:
         path = season.dir / "returns" / f"{e['seq']:05d}.parquet"
         if path.exists():
             curves[h] = pd.read_parquet(path)["return"]
+    # Deflated Sharpe recomputed against everything tried in the season, so rows compare
+    # fairly (the ledger keeps each trial's value at the moment it was scored).
+    dsr_end = {h: deflated_sharpe(curves[h], n, var) for h in curves}
     refs: dict[str, pd.DataFrame] = {}
     for path in sorted((season.dir / "returns").glob("benchmark_*.parquet")):
         refs[path.stem.removeprefix("benchmark_")] = pd.read_parquet(path)
@@ -112,6 +122,8 @@ def gather(season: Season, include_sealed: bool = False) -> dict:
         "curves": curves,
         "benchmark": bench,
         "balanced": balanced,
+        "dsr_end": dsr_end,
+        "n_tried": n,
         "refs": refs,
         "include_sealed": include_sealed,
         "intact": not season.ledger.verify(),
@@ -539,7 +551,8 @@ def comparison_chart(data: dict) -> str:
 def comparison_table(data: dict) -> str:
     """One row per strategy: its case, and how it did in every period it was scored in."""
     blocks = [b for b in PERIOD_ORDER[2:] if any(k[1] == b for k in data["vaults"])]
-    head = ["strategy", "category", "Sharpe", "return/yr", "max DD", "beta", "DSR", "validation"]
+    head = ["strategy", "category", "Sharpe", "return/yr", "max DD", "beta"]
+    head += [f"DSR (all {data['n_tried']} tried)", "validation"]
     head += [f"{b} Sharpe" for b in blocks]
     body = []
     refs = ref_stats(data, "discovery")
@@ -561,7 +574,6 @@ def comparison_table(data: dict) -> str:
     rows = sorted(data["latest"].values(), key=lambda e: e["metrics"]["sharpe"], reverse=True)
     for e in rows:
         m = e["metrics"]
-        d = e.get("deflation") or {}
         ans = data["validation"].get(e["hash"])
         val = "not asked"
         if ans:
@@ -577,7 +589,7 @@ def comparison_table(data: dict) -> str:
             _fmt(m.get("annual_return"), ".1%"),
             _fmt(m.get("max_drawdown"), ".0%"),
             _fmt(m.get("beta")),
-            _fmt(d.get("deflated_sharpe")),
+            _fmt(data["dsr_end"].get(e["hash"])),
             _esc(val),
         ]
         for b in blocks:

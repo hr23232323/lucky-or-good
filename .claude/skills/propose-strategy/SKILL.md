@@ -25,7 +25,8 @@ You are the **proposer**. You write strategy files; the judge scores them. You n
    - Gross vs net Sharpe: if costs eat it, turnover is the problem.
    - "With one extra day of lag": only meaningful when the result is significant (t above 2). Then a collapse means the edge lives in the first day after the signal, which is fragile. On a near-zero Sharpe the difference is noise.
    - Alpha Sharpe and beta: high Sharpe with beta near 1 is just the market.
-   - "Exposure" is gross exposure (long plus short), capped at 1.0.
+   - "Exposure" is gross exposure (long plus short), capped at 1.0. "Positions" is the average number of names held, both legs counted.
+   - Costs are charged on every change in weights. Two constructions are cost traps: re-equal-weighting a changing set of names every day, and resizing a hedge across the whole universe every day. Rebalance on a schedule (weekly or monthly) unless the idea needs daily trading, and say why if it does.
 6. **Write a notebook entry** (format below), even for failures. Failures are most of the value.
 7. **Decide:** a new idea, a substantive change, or (rarely) validation.
 
