@@ -48,6 +48,10 @@ Strategies may read a warm-up window before a block starts for lookbacks. Return
 
 A sealed block protects against *search* overfitting. It does not protect against the model *remembering* the period. Only `forward` data, or a model whose training cutoff predates the block, does that.
 
+## Cleaning
+
+Real data has bad prints. The loader drops bars that can't be real trades (non-positive or absurd prices, zero volume, stray prints on a fraction of normal volume, and spikes that snap back the next day) and adjusts splits the vendor missed, detected from an overnight price jump at a split ratio with volume moving the other way. Two of these look ahead in a limited, standard way: recognising a spike as one needs the next bar, and adjusting a split rescales earlier prices (as all split-adjusted data does). Neither changes returns of real trades. Known gaps: spinoffs and other corporate actions aren't adjusted, and a few long stretches of junk on a different price scale survive. The engine notes any held position that rises more than 300% in a day, so a human looks before trusting the result.
+
 ## Universe, costs, delistings
 
 - Universe is chosen point-in-time: top N by trailing median dollar volume, using data through `t-1`. Never today's list.

@@ -19,6 +19,8 @@ import pandas as pd
 
 from .data import Panel
 
+EXTREME_RETURN = 3.0  # a held position moving more than +300% in a day is flagged in notes
+
 
 @dataclass(frozen=True)
 class CostModel:
@@ -179,6 +181,7 @@ def backtest(
     borrow_daily = costs.borrow_bps_per_year / 1e4 / 252
 
     n_days, n = w_dec.shape
+    extreme_days = 0
     out = {k: np.zeros(n_days) for k in ("net", "gross", "cost", "turn", "gexp", "nexp", "npos")}
     w_cur = np.zeros(n)
     for d in range(1, n_days):
@@ -202,7 +205,15 @@ def backtest(
         growth = 1.0 + net
         w_cur = target * (1.0 + r) / growth if growth > 0 else np.zeros(n)
         w_cur[final[d]] = 0.0  # delisted: proceeds become cash
+        held = target != 0
+        if held.any():
+            extreme_days += int((np.abs(np.nan_to_num(R[d][held])) > EXTREME_RETURN).sum())
 
+    if extreme_days:
+        notes.append(
+            f"{extreme_days} position-days had a one-day move above +{EXTREME_RETURN:.0%}; "
+            "check for bad prints before trusting the result"
+        )
     # The last date has no next open, so its holding return is unknown.
     idx = dates[1:-1]
     sl = slice(1, n_days - 1)

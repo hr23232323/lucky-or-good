@@ -8,11 +8,11 @@ Every call ends in exactly one ledger entry, whatever happens.
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import math
+import pickle
 import shutil
-import tempfile
-import weakref
 from pathlib import Path
 
 import numpy as np
@@ -27,6 +27,7 @@ from .periods import SEALED, Block
 from .sandbox import StrategyError, run_strategy, save_panel
 from .season import Season
 
+LOADER_VERSION = "2"  # bump when loading or cleaning changes, so cached panels rebuild
 THRESHOLD = 0.5  # validation answers only move when it disagrees with discovery by this much
 NOISE = 0.25  # Laplace scale (annual Sharpe units) for validation answers
 STEP = 0.25  # validation answers are rounded to this
@@ -73,23 +74,40 @@ class Judge:
         self.ledger = season.ledger
         self._panels: dict[str, Panel] = {}
         self._panel_files: dict[str, Path] = {}
-        self._tmp = tempfile.TemporaryDirectory(prefix="lucky-panels-")
-        weakref.finalize(self, self._tmp.cleanup)
         self._rng = np.random.default_rng()
 
     # ---------- data ----------
+    def _cache_path(self, block: Block) -> Path:
+        """Cache key: the block's window, universe size, loader version and the data files."""
+        start, end = self.periods.load_window(block)
+        md = MarketData(self.root)
+        files = md.files(start, end)
+        h = hashlib.sha256()
+        h.update(f"{LOADER_VERSION}|{start}|{end}|{self.season.top_n}".encode())
+        for f in files:
+            h.update(f"{f.name}:{f.stat().st_size}".encode())
+        return self.season.dir / "cache" / f"{block.name}-{h.hexdigest()[:12]}.pkl"
+
     def panel(self, block: Block) -> Panel:
         if block.name not in self._panels:
-            start, end = self.periods.load_window(block)
-            self._panels[block.name] = MarketData(self.root).load(
-                start, end, top_n=self.season.top_n
-            )
+            path = self.panel_file(block)
+            with path.open("rb") as f:
+                self._panels[block.name] = pickle.load(f)
         return self._panels[block.name]
 
     def panel_file(self, block: Block) -> Path:
+        """The block's panel as a pickle, built once per season and reused across runs."""
         if block.name not in self._panel_files:
-            path = Path(self._tmp.name) / f"{block.name}.pkl"
-            self._panel_files[block.name] = save_panel(self.panel(block), path)
+            path = self._cache_path(block)
+            if not path.exists():
+                start, end = self.periods.load_window(block)
+                panel = MarketData(self.root).load(start, end, top_n=self.season.top_n)
+                path.parent.mkdir(exist_ok=True)
+                tmp = path.with_suffix(".tmp")
+                save_panel(panel, tmp)
+                tmp.replace(path)
+                self._panels[block.name] = panel
+            self._panel_files[block.name] = path
         return self._panel_files[block.name]
 
     def benchmark(self, block: Block) -> pd.Series | None:

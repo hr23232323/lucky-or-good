@@ -9,6 +9,11 @@ Why:
 Changed:
 ```
 
+## 2026-10-20: the real archive has bad prints that the synthetic market never had
+What happened: first contact with the full MarketParquet archive (38M rows, 16,410 symbols). 824 symbols have prices that jump more than 3x and snap back the next day; others have runs of stray prints on a handful of shares, unadjusted reverse splits (JDSU 2006, Level 3 2011), and prices like $70 billion a share. A held position would book thousands of percent in a day, and because the fake price inflates dollar volume, broken names ranked into the "most liquid 1,000".
+Why: vendor data is cleaned for the common cases only. Our tests used a synthetic market we generated, which by construction had none of this.
+Changed: the loader drops impossible bars (four rules) and adjusts unadjusted splits, with a test per failure mode taken from a real example. In-universe moves above +100% in discovery fell from 30 to 16, mostly real events now. The engine notes any held position above +300% in a day. Residual gaps (spinoffs, long junk stretches on another price scale) are documented in docs/design.md. Lesson: look at the real data's extremes before trusting any result on it; the synthetic market can't teach you what you didn't put in it.
+
 ## 2026-10-16: sealed results leaked into the public ledger
 What happened: while building the season report, the vault rows showed a deflated Sharpe. The ledger hid vault and validation Sharpe ratios but kept the deflated Sharpe and the "matched expected sign" flag, which `lucky ledger` prints to proposers. Both say how a sealed period went.
 Why: sealing used a deny-list of fields to remove. Every field added later (deflation, sign check) leaked by default.

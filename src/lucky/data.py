@@ -17,11 +17,18 @@ from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
 import duckdb
+import numpy as np
 import pandas as pd
 
 FIELDS = ("open", "high", "low", "close", "volume")
 DELISTED_SUFFIX = "-DELISTED"
 DATE_IN_NAME = re.compile(r"\d{4}-\d{2}-\d{2}$")
+BAD_PRINT_JUMP = 3.0  # a close or open this many times away from the previous close...
+BAD_PRINT_REVERT = 2.0  # ...that reverses by this much is treated as a bad print
+MAX_PRICE = 2_000_000  # above any US share price ever (Berkshire A peaked near $0.8M)
+THIN_VOLUME = 0.01  # a bar trading under 1% of its usual volume at a far-off price is junk
+SPLIT_RATIOS = (2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 100)
+SPLIT_PRICE_TOL = 0.12  # log-distance between the overnight price ratio and the split ratio
 
 
 def data_dir() -> Path:
@@ -103,7 +110,7 @@ class MarketData:
                 out.append(path)
         return out
 
-    def load_long(self, start=None, end=None, symbols=None) -> pd.DataFrame:
+    def _source(self, start, end) -> tuple[duckdb.DuckDBPyConnection, str]:
         files = self.files(start, end)
         if not files:
             raise ValueError(f"No files in {self.dir} between {start} and {end}")
@@ -112,30 +119,141 @@ class MarketData:
         cols = {row[0] for row in con.execute(f"DESCRIBE SELECT * FROM {src}").fetchall()}
         parts = [c for c in ("date", "timestamp") if c in cols]
         day = f"COALESCE({', '.join(f'CAST({c} AS DATE)' for c in parts)})"
-        where = ""
-        params: list = []
+        raw = f"SELECT {day} AS date, symbol, {', '.join(FIELDS)} FROM {src}"
+        return con, raw
+
+    def _clean_sql(self, raw: str) -> str:
+        """Flag bars that can't be real trades. Three rules, in order:
+
+        1. Non-positive prices, zero volume, or a price above $2 million (more
+           than any US stock has traded at): not a real trade.
+        2. Thin junk: volume under 1% of the symbol's median over the previous
+           20 bars while the close is more than 3x away from their median close
+           (a stray print from another security; uses past bars only).
+        3. Spike and revert: a close more than 3x away from the previous close
+           that the next close reverses by more than 2x, or an open more than 3x
+           away that the same bar's close reverses. Recognising the reversal
+           needs the next bar, as any vendor's cleaning does; real moves that
+           stick are kept.
+        """
+        jump, revert = f"ln({BAD_PRINT_JUMP})", f"ln({BAD_PRINT_REVERT})"
+        return f"""
+        WITH raw AS ({raw}),
+        pos AS (SELECT * FROM raw WHERE open > 0 AND close > 0 AND high > 0 AND low > 0
+                AND volume > 0 AND close < {MAX_PRICE} AND open < {MAX_PRICE}),
+        thin AS (SELECT *,
+            coalesce(volume < {THIN_VOLUME} * median(volume) OVER past
+                     AND abs(ln(close / median(close) OVER past)) > {jump}, false) AS bad_thin
+          FROM pos
+          WINDOW past AS (PARTITION BY symbol ORDER BY date
+                          ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING)),
+        kept AS (SELECT * FROM thin WHERE NOT bad_thin),
+        nb AS (SELECT *, lag(close) OVER w AS pc, lead(close) OVER w AS nc FROM kept
+               WINDOW w AS (PARTITION BY symbol ORDER BY date)),
+        flagged AS (SELECT *,
+            coalesce(abs(ln(close / pc)) > {jump} AND abs(ln(nc / close)) > {revert}
+                     AND sign(ln(close / pc)) != sign(ln(nc / close)), false)
+            OR coalesce(abs(ln(open / pc)) > {jump} AND abs(ln(close / open)) > {revert}
+                     AND sign(ln(open / pc)) != sign(ln(close / open)), false) AS bad
+          FROM nb)
+        SELECT date, symbol, {", ".join(FIELDS)}, bad FROM flagged
+        UNION ALL
+        SELECT date, symbol, {", ".join(FIELDS)}, true AS bad FROM thin WHERE bad_thin
+        UNION ALL
+        SELECT date, symbol, {", ".join(FIELDS)}, true AS bad FROM raw
+        WHERE NOT (open > 0 AND close > 0 AND high > 0 AND low > 0 AND volume > 0
+                   AND close < {MAX_PRICE} AND open < {MAX_PRICE})
+           OR open IS NULL OR close IS NULL OR volume IS NULL"""
+
+    def load_long(self, start=None, end=None, symbols=None, clean: bool = True) -> pd.DataFrame:
+        con, raw = self._source(start, end)
+        base = self._clean_sql(raw) if clean else f"SELECT *, false AS bad FROM ({raw})"
+        where, params = "WHERE NOT bad", []
         if symbols is not None:
-            where = "WHERE symbol IN (SELECT unnest(?))"
+            where += " AND symbol IN (SELECT unnest(?))"
             params.append(list(symbols))
-        query = (
-            f"SELECT {day} AS date, symbol, {', '.join(FIELDS)} FROM {src} {where} "
-            "ORDER BY date, symbol"
+        df = con.execute(
+            f"SELECT date, symbol, {', '.join(FIELDS)} FROM ({base}) {where} ORDER BY date, symbol",
+            params,
+        ).df()
+        self.dropped_bars = int(
+            con.execute(f"SELECT count(*) FROM ({base}) WHERE bad").fetchone()[0]
         )
-        df = con.execute(query, params).df()
         df["date"] = pd.to_datetime(df["date"])
         return df
 
+    def liquid_candidates(self, start, end, top_n: int, lookback: int = 60) -> list[str]:
+        """Symbols ever ranked in the top ``2 * top_n`` by trailing median dollar volume.
+
+        A cheap superset of the exact universe, computed in DuckDB so the full
+        archive never has to be pivoted. Uses only past bars, like the universe.
+        """
+        con, raw = self._source(start, end)
+        query = f"""
+        WITH c AS ({self._clean_sql(raw)}),
+        dv AS (SELECT date, symbol,
+                 median(close * volume) OVER (PARTITION BY symbol ORDER BY date
+                   ROWS BETWEEN {lookback} PRECEDING AND 1 PRECEDING) AS m
+               FROM c WHERE NOT bad),
+        ranked AS (SELECT symbol, rank() OVER (PARTITION BY date ORDER BY m DESC) AS r
+                   FROM dv WHERE m IS NOT NULL)
+        SELECT DISTINCT symbol FROM ranked WHERE r <= {2 * top_n} ORDER BY symbol"""
+        return [row[0] for row in con.execute(query).fetchall()]
+
     def load(
-        self, start=None, end=None, symbols=None, top_n: int | None = None, lookback: int = 60
+        self,
+        start=None,
+        end=None,
+        symbols=None,
+        top_n: int | None = None,
+        lookback: int = 60,
+        clean: bool = True,
     ) -> Panel:
-        long = self.load_long(start, end, symbols)
+        if top_n is not None and symbols is None:
+            symbols = self.liquid_candidates(start, end, top_n, lookback)
+        long = self.load_long(start, end, symbols, clean=clean)
         wide = {f: long.pivot(index="date", columns="symbol", values=f) for f in FIELDS}
+        del long
+        self.split_events = 0
+        if clean:
+            wide, self.split_events = adjust_unadjusted_splits(wide)
         close = wide["close"]
         if top_n is None:
             universe = close.notna()
         else:
             universe = liquidity_universe(close * wide["volume"], top_n, lookback) & close.notna()
         return Panel(universe=universe, **wide)
+
+
+def adjust_unadjusted_splits(wide: dict[str, pd.DataFrame]) -> tuple[dict, int]:
+    """Find splits the vendor didn't adjust for, and adjust earlier bars.
+
+    A split shows up as an overnight price jump close to a common split ratio
+    (2, 3, ... 100, or the reverse) on a day when volume moves the other way by
+    at least the square root of that ratio, compared with the previous 20 bars.
+    Both conditions use only that day and earlier bars. Earlier prices are then
+    scaled so returns are correct, the same way vendors adjust for splits.
+    """
+    o, c, v = wide["open"], wide["close"], wide["volume"]
+    prev_close = c.ffill(limit=5).shift(1)
+    lr = np.log(o / prev_close)
+    lvr = np.log(v / v.rolling(20, min_periods=5).median().shift(1))
+    mult = pd.DataFrame(1.0, index=c.index, columns=c.columns)
+    for k in SPLIT_RATIOS:
+        lk = np.log(k)
+        reverse = ((lr - lk).abs() < SPLIT_PRICE_TOL) & (lvr < -lk / 2)  # price up k, volume down
+        forward = ((lr + lk).abs() < SPLIT_PRICE_TOL) & (lvr > lk / 2)  # price down k, volume up
+        mult = mult.mask(reverse, float(k)).mask(forward, 1.0 / k)
+    events = int((mult != 1.0).to_numpy().sum())
+    if not events:
+        return wide, 0
+    # Bars before an event are scaled by every event after them.
+    after = mult.iloc[::-1].cumprod().iloc[::-1].shift(-1).fillna(1.0)
+    out = dict(wide)
+    for f in ("open", "high", "low", "close"):
+        out[f] = wide[f] * after
+    out["volume"] = wide["volume"] / after
+    return out, events
 
 
 def liquidity_universe(
