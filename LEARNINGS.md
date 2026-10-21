@@ -9,6 +9,11 @@ Why:
 Changed:
 ```
 
+## 2026-10-21: the 60/40 reference was scored on half of vault A
+What happened: the first sealed report showed the 60/40 portfolio with a Sharpe of 1.01 in vault A (2001-2003), and the comparison table used it as the bar to beat. IEF only starts in mid-2002, so that Sharpe covered just the rebound half of the period, while every strategy was scored over all of it.
+Why: reference returns were computed over whatever dates had data. The pre-registration even noted IEF's late start; the report code didn't act on it.
+Changed: a reference that covers less than 95% of a period is left out of that period (shown as –), with a test. Lesson: anything compared side by side must be measured over the same dates.
+
 ## 2026-10-20: opening the vaults from a scratch script froze a strategy twice and hung
 What happened: a throwaway script to freeze all Season 1 strategies and open their vaults wrote two freeze entries for the first strategy (ledger #24, #25), then sat idle with a dead child process. Separately, `ruff format .` had reformatted a proposer's strategy file, which changes its content hash, so it would no longer match its discovery score and couldn't be frozen. Caught and reverted before freezing.
 Why: the sandbox spawns its child, and spawn re-imports the parent's main module. The script had no `if __name__ == "__main__"` guard, so the child re-ran the script (the second freeze), then died trying to spawn its own child. The sandbox waited on a queue for the full 5-minute timeout instead of noticing the child was gone. For the formatter: a strategy's identity is its exact bytes, and the formatter was allowed to touch them.

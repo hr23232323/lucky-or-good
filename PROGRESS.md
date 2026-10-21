@@ -21,7 +21,7 @@ Goal: an honest playground for LLM strategy research (see `intents/000-goal.md`)
 
 ## Next
 
-1. Season 1: baselines and 15 proposer strategies scored in discovery; vaults being opened for all of them (pre-registered). Then the results write-up.
+1. Season 1 is done: no strategy passed ([results](docs/seasons/season-1-results.md)). Open the forward block once it has enough data (late 2027 at the earliest).
 2. Factor attribution (#2) before any write-up, so "alpha" means alpha.
 3. Dividends (#1): every number so far is price return only.
 
