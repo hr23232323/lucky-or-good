@@ -9,6 +9,11 @@ Why:
 Changed:
 ```
 
+## 2026-10-21: a failed lint stopped one commit but not the next
+What happened: a single shell call ran "lint && commit A" and then, separately, "add && commit B". Lint failed on a strategy file in B, so A was skipped, but B ran anyway and committed the file with the lint error.
+Why: `&&` only chains within one command list; a new line starts a new one.
+Changed: one commit per shell call when checks gate it. Same lesson as the hidden pipe failure: make the gate the only path to the commit.
+
 ## 2026-10-21: the 60/40 reference was scored on half of vault A
 What happened: the first sealed report showed the 60/40 portfolio with a Sharpe of 1.01 in vault A (2001-2003), and the comparison table used it as the bar to beat. IEF only starts in mid-2002, so that Sharpe covered just the rebound half of the period, while every strategy was scored over all of it.
 Why: reference returns were computed over whatever dates had data. The pre-registration even noted IEF's late start; the report code didn't act on it.
