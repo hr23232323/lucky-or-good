@@ -189,6 +189,9 @@ def _strategy_tip(e: dict) -> list[str]:
     ]
 
 
+REF_COVERAGE = 0.95
+
+
 def ref_stats(data: dict, block: str) -> dict[str, dict]:
     """Sharpe, return and drawdown of the reference portfolios in a block."""
     frame = data["refs"].get(block)
@@ -202,7 +205,9 @@ def ref_stats(data: dict, block: str) -> dict[str, dict]:
         if col not in frame:
             continue
         r = frame[col].dropna()
-        if len(r) < 20:
+        # A reference that starts late in the period (IEF in vault A) would be
+        # compared over different, shorter dates than the strategies: skip it.
+        if len(r) < 20 or len(r) < REF_COVERAGE * len(frame):
             continue
         out[label] = {
             "sharpe": sharpe(r),
@@ -548,28 +553,56 @@ def comparison_chart(data: dict) -> str:
     )
 
 
+def _season_title(name: str) -> str:
+    """'season-1' reads as 'Season 1' in the page title."""
+    rest = name.removeprefix("season-")
+    return rest if rest != name else name
+
+
 def comparison_table(data: dict) -> str:
-    """One row per strategy: its case, and how it did in every period it was scored in."""
-    blocks = [b for b in PERIOD_ORDER[2:] if any(k[1] == b for k in data["vaults"])]
-    head = ["strategy", "category", "Sharpe", "return/yr", "max DD", "beta"]
-    head += [f"DSR (all {data['n_tried']} tried)", "validation"]
-    head += [f"{b} Sharpe" for b in blocks]
+    """One row per strategy: its case, and its Sharpe in every period side by side.
+
+    Each period's Sharpe is marked against the best reference portfolio (SPY or
+    60/40) in that same period, since "beat just holding the market" is the bar.
+    """
+    blocks = ["discovery"] + [b for b in PERIOD_ORDER[2:] if any(k[1] == b for k in data["vaults"])]
+    refs = {b: ref_stats(data, b) for b in blocks}
+    bar = {b: max((st["sharpe"] for st in refs[b].values()), default=None) for b in blocks}
+    head = [("strategy", ""), ("category", "")]
+    head += [(f"{b} Sharpe", "num") for b in blocks]
+    head += [("return/yr", "num"), ("max DD", "num"), ("beta", "num")]
+    head += [(f"DSR (all {data['n_tried']} tried)", "num"), ("validation", "")]
+
+    def mark(value, block):
+        if value is None:
+            return "–"
+        if bar[block] is None:
+            return _fmt(value)
+        cls = "beat" if value > bar[block] else "miss"
+        return f'<span class="{cls}">{_fmt(value)}</span>'
+
+    def hyp(text: str) -> str:
+        if not text:
+            return ""
+        return f'<details class="hyp"><summary>{_esc(text)}</summary></details>'
+
     body = []
-    refs = ref_stats(data, "discovery")
-    for label, st in refs.items():
+    for label, st in refs["discovery"].items():
         cells = [
-            f'<div class="sname ref-label">{_esc(label)}</div><div class="hyp">reference portfolio, not a trial</div>',
+            f'<div class="sname ref-label">{_esc(label)}</div>'
+            '<div class="hyp-plain">reference portfolio, not a trial</div>',
             "reference",
-            _fmt(st["sharpe"]),
+        ]
+        for b in blocks:
+            bst = refs[b].get(label)
+            cells.append(_fmt(bst["sharpe"]) if bst else "–")
+        cells += [
             _fmt(st["annual_return"], ".1%"),
             _fmt(st["max_drawdown"], ".0%"),
             "–",
             "–",
             "–",
         ]
-        for b in blocks:
-            bst = ref_stats(data, b).get(label)
-            cells.append(_fmt(bst["sharpe"]) if bst else "–")
         body.append('<tr class="ref-row">' + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
     rows = sorted(data["latest"].values(), key=lambda e: e["metrics"]["sharpe"], reverse=True)
     for e in rows:
@@ -580,33 +613,45 @@ def comparison_table(data: dict) -> str:
             val = f"~{ans['sharpe']:.2f}" + (
                 f" (true {ans['true_sharpe']:.2f})" if "true_sharpe" in ans else ""
             )
-        hyp = (e.get("meta") or {}).get("hypothesis", "")
         cells = [
             f'<div class="sname"><span class="key {_group(e)}"></span>{_esc(_name(e))}</div>'
-            f'<div class="hyp">{_esc(hyp)}</div>',
+            + hyp((e.get("meta") or {}).get("hypothesis", "")),
             _esc(_category(e)),
-            _fmt(m.get("sharpe")),
+            mark(m.get("sharpe"), "discovery"),
+        ]
+        for b in blocks[1:]:
+            r = data["vaults"].get((e["hash"], b))
+            if not r:
+                cells.append("not opened")
+            elif r.get("metrics"):
+                cells.append(mark(r["metrics"]["sharpe"], b))
+            else:
+                cells.append("sealed")
+        cells += [
             _fmt(m.get("annual_return"), ".1%"),
             _fmt(m.get("max_drawdown"), ".0%"),
             _fmt(m.get("beta")),
             _fmt(data["dsr_end"].get(e["hash"])),
             _esc(val),
         ]
-        for b in blocks:
-            r = data["vaults"].get((e["hash"], b))
-            if not r:
-                cells.append("not opened")
-            elif r.get("metrics"):
-                cells.append(_fmt(r["metrics"]["sharpe"]))
-            else:
-                cells.append("sealed")
         body.append("<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
+    note = ""
+    if any(v is not None for v in bar.values()):
+        note = (
+            '<p class="note"><span class="beat">Bold</span> marks a Sharpe above the best '
+            "reference portfolio in the same period. Return, drawdown and beta are for "
+            "discovery. A reference shows – where it has no data for the whole period. "
+            "Tap a hypothesis to read all of it.</p>"
+        )
     return (
         '<div class="table-wrap"><table class="comparison"><thead><tr>'
-        + "".join(f"<th>{_esc(h)}</th>" for h in head)
+        + "".join(
+            f'<th class="{c}">{_esc(h)}</th>' if c else f"<th>{_esc(h)}</th>" for h, c in head
+        )
         + "</tr></thead><tbody>"
         + "".join(body)
         + "</tbody></table></div>"
+        + note
     )
 
 
@@ -792,8 +837,8 @@ def build(season: Season, include_sealed: bool = False) -> str:
     generated = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     template = (ASSETS / "report.html").read_text()
     return template.format(
-        title=_esc(f"lucky-or-good season {s.name}"),
-        name=_esc(s.name),
+        title=_esc(f"Lucky or Good: Season {_season_title(s.name)}"),
+        name=_esc(_season_title(s.name)),
         meta=_esc(
             f"Proposing model {s.model} (training cutoff {s.model_cutoff}) · universe: top "
             f"{s.top_n} US stocks by liquidity · benchmark {s.benchmark}"

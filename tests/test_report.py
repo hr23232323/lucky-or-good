@@ -1,10 +1,12 @@
+import re
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from lucky.judge import Judge
-from lucky.report import build, gather, write
+from lucky.report import build, comparison_table, gather, ref_stats, write
 from lucky.season import Season
 
 HERE = Path(__file__).parent
@@ -73,3 +75,28 @@ def test_comparison_views(season):
     sealed = build(season, include_sealed=True)
     assert 'class="pt pt-vault_b"' in sealed
     assert "benchmark (MKT)" in sealed  # reference line from the synthetic market's ETF
+
+
+def test_comparison_table_puts_every_period_side_by_side(season):
+    table = comparison_table(gather(season, include_sealed=True))
+    head = re.findall(r"<th[^>]*>(.*?)</th>", table)
+    # Sharpe in each period comes right after the strategy, so a reader compares
+    # discovery with the sealed periods without scrolling sideways.
+    assert head[2].startswith("discovery") and head[3].startswith("vault")
+    assert "<details" in table  # long hypotheses fold instead of stretching rows
+    # each period's cell says whether it beat the best reference portfolio there
+    assert 'class="beat"' in table or 'class="miss"' in table
+
+
+def test_a_reference_that_covers_part_of_a_period_is_not_compared():
+    # The 60/40 reference needs IEF, which starts mid-2002, inside vault A. Its
+    # Sharpe over the rebound half of a period is no bar for strategies scored
+    # over all of it.
+    import numpy as np
+    import pandas as pd
+
+    idx = pd.bdate_range("2001-01-01", periods=500)
+    r = pd.Series(np.random.default_rng(0).normal(0.0003, 0.01, 500), index=idx)
+    frame = pd.DataFrame({"return": r, "balanced": r.where(idx >= idx[250])})
+    data = {"refs": {"vault_a": frame}, "season": SimpleNamespace(benchmark="SPY")}
+    assert list(ref_stats(data, "vault_a")) == ["SPY buy and hold"]
