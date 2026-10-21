@@ -123,6 +123,9 @@ def main(argv: list[str] | None = None) -> int:
     dl.add_argument("--start-year", type=int, default=2000)
     dl.add_argument("--end-year", type=int, default=None)
     dl.add_argument("--workers", type=int, default=8)
+    sh = dtsub.add_parser("shiller", help="market P/E and CAPE from Shiller's ie_data.xls")
+    sh.add_argument("xls", help="ie_data.xls from shillerdata.com")
+    sh.add_argument("--out", required=True, help="fundamentals folder")
 
     sn = sub.add_parser("season", help="manage research seasons")
     snsub = sn.add_subparsers(dest="season_cmd", required=True)
@@ -135,6 +138,9 @@ def main(argv: list[str] | None = None) -> int:
     new.add_argument("--top-n", type=int, default=1000)
     new.add_argument("--benchmark", default="SPY")
     new.add_argument("--budget", type=int, default=25, help="validation looks allowed")
+    new.add_argument(
+        "--fundamentals", default="", help="folder of valuation tables (lucky data shiller/edgar)"
+    )
 
     c = sub.add_parser("check", help="static checks only")
     c.add_argument("file")
@@ -178,6 +184,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    if args.cmd == "data" and args.data_cmd == "shiller":
+        from .fundamentals import market_valuation, read_shiller
+
+        out = Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        v = market_valuation(read_shiller(args.xls)).dropna(how="all")
+        v.to_parquet(out / "market_valuation.parquet")
+        print(f"Wrote {len(v)} months ({v.index.min():%Y-%m} to {v.index.max():%Y-%m}) to {out}")
+        return 0
+
     if args.cmd == "data":
         from .download import DownloadError, download
 
@@ -212,6 +228,7 @@ def main(argv: list[str] | None = None) -> int:
             top_n=args.top_n,
             benchmark=args.benchmark,
             validation_budget=args.budget,
+            fundamentals_dir=args.fundamentals,
         )
         print(f"Season '{season.name}' at {season.dir}. Use: export LUCKY_SEASON={season.dir}")
         return 0

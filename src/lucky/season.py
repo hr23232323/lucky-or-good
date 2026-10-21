@@ -29,6 +29,8 @@ class Season:
     benchmark: str = "SPY"
     validation_budget: int = 25
     lookahead_samples: int = 3
+    # Folder with point-in-time valuation tables (see fundamentals.py); "" = none.
+    fundamentals_dir: str = ""
     created: str = field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
 
     @property

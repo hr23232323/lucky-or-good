@@ -21,6 +21,7 @@ import pandas as pd
 from .checks import compare_prefix, static_check
 from .data import MarketData, Panel
 from .engine import backtest, open_to_open
+from .fundamentals import attach, fundamentals_files
 from .ledger import content_hash
 from .metrics import DAYS, deflated_sharpe, expected_max_sharpe, sharpe, summary
 from .periods import SEALED, Block
@@ -85,7 +86,7 @@ class Judge:
         files = md.files(start, end)
         h = hashlib.sha256()
         h.update(f"{LOADER_VERSION}|{start}|{end}|{self.season.top_n}".encode())
-        for f in files:
+        for f in files + fundamentals_files(self.season.fundamentals_dir):
             h.update(f"{f.name}:{f.stat().st_size}".encode())
         return self.season.dir / "cache" / f"{block.name}-{h.hexdigest()[:12]}.pkl"
 
@@ -103,6 +104,8 @@ class Judge:
             if not path.exists():
                 start, end = self.periods.load_window(block)
                 panel = MarketData(self.root).load(start, end, top_n=self.season.top_n)
+                if self.season.fundamentals_dir:
+                    panel = attach(panel, self.season.fundamentals_dir)
                 path.parent.mkdir(exist_ok=True)
                 tmp = path.with_suffix(".tmp")
                 save_panel(panel, tmp)

@@ -56,6 +56,13 @@ class Panel:
     close: pd.DataFrame
     volume: pd.DataFrame
     universe: pd.DataFrame
+    # Valuation data, point in time (see fundamentals.py). None when a season
+    # doesn't provide it. ``market``: monthly market-wide rows ("pe", "cape"),
+    # indexed by the day each became available, with history before the panel
+    # starts; align with ``.reindex(panel.dates, method="ffill")``.
+    # ``earnings_yield``: trailing EPS over price, per stock (P/E is its inverse).
+    market: pd.DataFrame | None = None
+    earnings_yield: pd.DataFrame | None = None
 
     @property
     def dates(self) -> pd.DatetimeIndex:
@@ -72,7 +79,13 @@ class Panel:
         return self.close * self.volume
 
     def _map(self, fn) -> Panel:
-        return replace(self, **{f.name: fn(getattr(self, f.name)) for f in fields(self)})
+        return replace(
+            self,
+            **{
+                f.name: None if getattr(self, f.name) is None else fn(getattr(self, f.name))
+                for f in fields(self)
+            },
+        )
 
     def until(self, t) -> Panel:
         """Only rows on or before ``t``."""
