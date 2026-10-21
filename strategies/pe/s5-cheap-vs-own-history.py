@@ -6,7 +6,8 @@ META = {
     "(banks, utilities) with ones that never do (software). Comparing a stock with itself "
     "avoids that: a stock trading below its own usual P/E has been marked down, and part "
     "of that markdown reverses. Hold profitable universe stocks whose earnings yield is "
-    "above its median of the past year (the longest history every period has), equally weighted, monthly.",
+    "above its median of the past year (the longest history every period has), equally "
+    "weighted, monthly.",
     "expected_sign": "+",
     "author": "human idea (Harsh), written by the builder",
     "category": "stock P/E",

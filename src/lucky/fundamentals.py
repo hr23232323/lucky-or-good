@@ -78,7 +78,7 @@ def as_of(frame: pd.DataFrame, dates: pd.DatetimeIndex) -> pd.DataFrame:
 
 
 MARKET_FILE = "market_valuation.parquet"
-EARNINGS_FILE = "earnings_yield.parquet"
+EARNINGS_FILE = "stock_earnings.parquet"
 
 
 def fundamentals_files(root: Path | str) -> list[Path]:

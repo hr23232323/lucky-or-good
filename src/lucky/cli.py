@@ -126,6 +126,12 @@ def main(argv: list[str] | None = None) -> int:
     sh = dtsub.add_parser("shiller", help="market P/E and CAPE from Shiller's ie_data.xls")
     sh.add_argument("xls", help="ie_data.xls from shillerdata.com")
     sh.add_argument("--out", required=True, help="fundamentals folder")
+    ed = dtsub.add_parser(
+        "edgar", help="per-stock trailing EPS from SEC filings (needs SEC_USER_AGENT)"
+    )
+    ed.add_argument("--out", required=True, help="fundamentals folder")
+    ed.add_argument("--data", default=os.environ.get("LUCKY_DATA_DIR"), help="price archive root")
+    ed.add_argument("--cache", required=True, help="where to keep SEC downloads (several GB)")
 
     sn = sub.add_parser("season", help="manage research seasons")
     snsub = sn.add_subparsers(dest="season_cmd", required=True)
@@ -192,6 +198,16 @@ def main(argv: list[str] | None = None) -> int:
         v = market_valuation(read_shiller(args.xls)).dropna(how="all")
         v.to_parquet(out / "market_valuation.parquet")
         print(f"Wrote {len(v)} months ({v.index.min():%Y-%m} to {v.index.max():%Y-%m}) to {out}")
+        return 0
+
+    if args.cmd == "data" and args.data_cmd == "edgar":
+        from .edgar import build
+
+        try:
+            table = build(args.out, args.data, args.cache)
+        except RuntimeError as e:
+            sys.exit(str(e))
+        print(f"Wrote {len(table)} rows for {table['symbol'].nunique()} stocks to {args.out}")
         return 0
 
     if args.cmd == "data":
