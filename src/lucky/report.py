@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .metrics import DAYS, expected_max_sharpe
+from .metrics import DAYS, annual_return, expected_max_sharpe, max_drawdown, sharpe
 from .season import Season
 
 BASELINE, CANDIDATE = "baseline", "candidate"
@@ -94,8 +94,12 @@ def gather(season: Season, include_sealed: bool = False) -> dict:
         path = season.dir / "returns" / f"{e['seq']:05d}.parquet"
         if path.exists():
             curves[h] = pd.read_parquet(path)["return"]
-    bench_path = season.dir / "returns" / "benchmark_discovery.parquet"
-    bench = pd.read_parquet(bench_path)["return"] if bench_path.exists() else None
+    refs: dict[str, pd.DataFrame] = {}
+    for path in sorted((season.dir / "returns").glob("benchmark_*.parquet")):
+        refs[path.stem.removeprefix("benchmark_")] = pd.read_parquet(path)
+    disc = refs.get("discovery")
+    bench = disc["return"] if disc is not None else None
+    balanced = disc["balanced"] if disc is not None and "balanced" in disc else None
 
     return {
         "season": season,
@@ -107,6 +111,8 @@ def gather(season: Season, include_sealed: bool = False) -> dict:
         "vaults": vaults,
         "curves": curves,
         "benchmark": bench,
+        "balanced": balanced,
+        "refs": refs,
         "include_sealed": include_sealed,
         "intact": not season.ledger.verify(),
     }
@@ -171,9 +177,42 @@ def _strategy_tip(e: dict) -> list[str]:
     ]
 
 
+def ref_stats(data: dict, block: str) -> dict[str, dict]:
+    """Sharpe, return and drawdown of the reference portfolios in a block."""
+    frame = data["refs"].get(block)
+    if frame is None:
+        return {}
+    out = {}
+    for col, label in (
+        ("return", f"{data['season'].benchmark} buy and hold"),
+        ("balanced", "60/40 balanced"),
+    ):
+        if col not in frame:
+            continue
+        r = frame[col].dropna()
+        if len(r) < 20:
+            continue
+        out[label] = {
+            "sharpe": sharpe(r),
+            "annual_return": annual_return(r),
+            "max_drawdown": max_drawdown(r),
+            "years": len(r) / DAYS,
+        }
+    return out
+
+
+def _ref_rows(data: dict) -> list[dict]:
+    """Reference portfolios shaped like trial entries, for charts that mix them in."""
+    rows = []
+    for label, st in ref_stats(data, "discovery").items():
+        rows.append({"ref": True, "name": label, "metrics": {"sharpe": st["sharpe"]}, "st": st})
+    return rows
+
+
 def sharpe_chart(data: dict) -> str:
-    rows = sorted(data["latest"].values(), key=lambda e: e["metrics"]["sharpe"], reverse=True)
-    if not rows:
+    rows = list(data["latest"].values()) + _ref_rows(data)
+    rows = sorted(rows, key=lambda e: e["metrics"]["sharpe"], reverse=True)
+    if not data["latest"]:
         return '<p class="empty">No strategies scored in discovery yet.</p>'
     noise = data["noise_bar"]
     vals = [e["metrics"]["sharpe"] for e in rows]
@@ -182,7 +221,7 @@ def sharpe_chart(data: dict) -> str:
     lo, hi = lo - pad, hi + pad
     if len(rows) <= MAX_BARS:
         return _bars(rows, lo, hi, noise)
-    return _strip(rows, lo, hi, noise)
+    return _strip([r for r in rows if not r.get("ref")], lo, hi, noise)
 
 
 def _ref_lines(x, lo, hi, noise, top, bottom):
@@ -209,12 +248,21 @@ def _bars(rows, lo, hi, noise) -> str:
     for i, e in enumerate(rows):
         y = top + i * (bar_h + gap)
         s = e["metrics"]["sharpe"]
-        g = _group(e)
-        name = _name(e)
+        if e.get("ref"):
+            g, name = "ref", e["name"]
+            st = e["st"]
+            tip = [
+                f"Sharpe {s:.2f}",
+                name,
+                f"return {st['annual_return']:.1%}/yr · max DD {st['max_drawdown']:.0%}",
+                "reference portfolio, not a trial",
+            ]
+        else:
+            g, name, tip = _group(e), _name(e), _strategy_tip(e)
         short = name if len(name) <= 30 else name[:29] + "…"
         anchor, dx = ("start", 6) if s >= 0 else ("end", -6)
         parts.append(
-            f'<g class="mark" tabindex="0" data-tip="{_tip(_strategy_tip(e))}">'
+            f'<g class="mark" tabindex="0" data-tip="{_tip(tip)}">'
             f'<rect class="hit" x="0" y="{y - gap / 2}" width="{W}" height="{bar_h + gap}"/>'
             f'<text class="label" x="{label_w - 10}" y="{y + bar_h - 4}" text-anchor="end">'
             f"{_esc(short)}</text>"
@@ -272,6 +320,9 @@ def equity_chart(data: dict) -> tuple[str, str]:
     if data["benchmark"] is not None:
         b = (1 + data["benchmark"].fillna(0)).cumprod()
         series.append({"name": f"benchmark ({data['season'].benchmark})", "group": "bench", "g": b})
+    if data.get("balanced") is not None:
+        b = (1 + data["balanced"].fillna(0)).cumprod()
+        series.append({"name": "60/40 balanced", "group": "balanced", "g": b})
 
     index = series[0]["g"].index
     for s in series[1:]:
@@ -301,7 +352,7 @@ def equity_chart(data: dict) -> tuple[str, str]:
     parts.append(f'<line class="axis" x1="{left}" x2="{right}" y1="{y(1):.1f}" y2="{y(1):.1f}"/>')
     order = sorted(
         range(len(series)),
-        key=lambda i: {"bench": 0, BASELINE: 1, CANDIDATE: 2}[series[i]["group"]],
+        key=lambda i: {"bench": 0, "balanced": 0, BASELINE: 1, CANDIDATE: 2}[series[i]["group"]],
     )
     for i in order:
         s = series[i]
@@ -395,6 +446,156 @@ def vault_charts(data: dict) -> str:
             "discovery.</figcaption></figure>"
         )
     return '<div class="vaults">' + "".join(out) + "</div>"
+
+
+PERIOD_ORDER = ("discovery", "validation", "vault_a", "vault_b", "forward")
+
+
+def _category(e: dict) -> str:
+    meta = e.get("meta") or {}
+    return str(meta.get("category") or ("baseline" if _group(e) == BASELINE else "–"))
+
+
+def comparison_chart(data: dict) -> str:
+    """Each strategy's Sharpe in discovery and in each opened sealed period, side by side."""
+    if not data["include_sealed"]:
+        return ""
+    blocks = [b for b in PERIOD_ORDER[2:] if any(k[1] == b for k in data["vaults"])]
+    if not blocks:
+        return ""
+    rows = sorted(data["latest"].values(), key=lambda e: e["metrics"]["sharpe"], reverse=True)
+    lines = []
+    for e in rows:
+        pts = {"discovery": e["metrics"]["sharpe"]}
+        for b in blocks:
+            r = data["vaults"].get((e["hash"], b))
+            if r and r.get("metrics"):
+                pts[b] = r["metrics"]["sharpe"]
+        lines.append((_name(e), _group(e), pts))
+    for label in ref_stats(data, "discovery"):
+        pts = {"discovery": ref_stats(data, "discovery")[label]["sharpe"]}
+        for b in blocks:
+            st = ref_stats(data, b).get(label)
+            if st:
+                pts[b] = st["sharpe"]
+        lines.append((label, "ref", pts))
+    vals = [v for _, _, pts in lines for v in pts.values()]
+    lo, hi = min(min(vals), -0.5) - 0.15, max(max(vals), 0.5) + 0.15
+    label_w, row_h, top = 210, 26, 30
+    h = top + len(lines) * row_h + 30
+    x = Scale(lo, hi, label_w, W - 20)
+    parts = []
+    for t in _ticks(lo, hi):
+        parts.append(
+            f'<line class="grid" x1="{x(t):.1f}" x2="{x(t):.1f}" y1="{top - 8}" y2="{h - 26}"/>'
+            f'<text class="tick" x="{x(t):.1f}" y="{h - 10}" text-anchor="middle">{t:g}</text>'
+        )
+    parts.append(
+        f'<line class="axis" x1="{x(0):.1f}" x2="{x(0):.1f}" y1="{top - 8}" y2="{h - 26}"/>'
+    )
+    shapes = {"discovery": "circle", blocks[0]: "diamond"}
+    if len(blocks) > 1:
+        shapes[blocks[1]] = "square"
+    for i, (name, group, pts) in enumerate(lines):
+        y = top + i * row_h + row_h / 2
+        xs = [x(v) for v in pts.values()]
+        short = name if len(name) <= 30 else name[:29] + "…"
+        tip = [f"{k}: Sharpe {v:.2f}" for k, v in pts.items()]
+        tip = [tip[0], name, *tip[1:]]
+        parts.append(
+            f'<g class="mark" tabindex="0" data-tip="{_tip(tip)}">'
+            f'<rect class="hit" x="0" y="{y - row_h / 2}" width="{W}" height="{row_h}"/>'
+            f'<text class="label{" ref-label" if group == "ref" else ""}" x="{label_w - 10}" '
+            f'y="{y + 4:.1f}" text-anchor="end">{_esc(short)}</text>'
+            f'<line class="span" x1="{min(xs):.1f}" x2="{max(xs):.1f}" y1="{y:.1f}" y2="{y:.1f}"/>'
+        )
+        for k, v in pts.items():
+            cx, shape = x(v), shapes.get(k, "circle")
+            cls = f"pt pt-{k}"
+            if shape == "circle":
+                parts.append(f'<circle class="{cls}" cx="{cx:.1f}" cy="{y:.1f}" r="5"/>')
+            elif shape == "diamond":
+                parts.append(
+                    f'<path class="{cls}" d="M{cx:.1f},{y - 6:.1f}L{cx + 6:.1f},{y:.1f}'
+                    f'L{cx:.1f},{y + 6:.1f}L{cx - 6:.1f},{y:.1f}Z"/>'
+                )
+            else:
+                parts.append(
+                    f'<rect class="{cls}" x="{cx - 5:.1f}" y="{y - 5:.1f}" width="10" height="10" rx="1"/>'
+                )
+        parts.append("</g>")
+    legend = "".join(
+        f'<span><span class="key pt-key pt-{k} shape-{shapes.get(k, "circle")}"></span>{_esc(k)}</span>'
+        for k in ["discovery", *blocks]
+    )
+    return (
+        f'<div class="card"><svg viewBox="0 0 {W} {h}" role="img" aria-label="Sharpe ratio of '
+        f'each strategy in discovery and in each sealed period">{"".join(parts)}</svg>'
+        f'<div class="legend">{legend}<span><span class="key line ref-key"></span>'
+        "reference portfolios (grey labels)</span></div></div>"
+    )
+
+
+def comparison_table(data: dict) -> str:
+    """One row per strategy: its case, and how it did in every period it was scored in."""
+    blocks = [b for b in PERIOD_ORDER[2:] if any(k[1] == b for k in data["vaults"])]
+    head = ["strategy", "category", "Sharpe", "return/yr", "max DD", "beta", "DSR", "validation"]
+    head += [f"{b} Sharpe" for b in blocks]
+    body = []
+    refs = ref_stats(data, "discovery")
+    for label, st in refs.items():
+        cells = [
+            f'<div class="sname ref-label">{_esc(label)}</div><div class="hyp">reference portfolio, not a trial</div>',
+            "reference",
+            _fmt(st["sharpe"]),
+            _fmt(st["annual_return"], ".1%"),
+            _fmt(st["max_drawdown"], ".0%"),
+            "–",
+            "–",
+            "–",
+        ]
+        for b in blocks:
+            bst = ref_stats(data, b).get(label)
+            cells.append(_fmt(bst["sharpe"]) if bst else "–")
+        body.append('<tr class="ref-row">' + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
+    rows = sorted(data["latest"].values(), key=lambda e: e["metrics"]["sharpe"], reverse=True)
+    for e in rows:
+        m = e["metrics"]
+        d = e.get("deflation") or {}
+        ans = data["validation"].get(e["hash"])
+        val = "not asked"
+        if ans:
+            val = f"~{ans['sharpe']:.2f}" + (
+                f" (true {ans['true_sharpe']:.2f})" if "true_sharpe" in ans else ""
+            )
+        hyp = (e.get("meta") or {}).get("hypothesis", "")
+        cells = [
+            f'<div class="sname"><span class="key {_group(e)}"></span>{_esc(_name(e))}</div>'
+            f'<div class="hyp">{_esc(hyp)}</div>',
+            _esc(_category(e)),
+            _fmt(m.get("sharpe")),
+            _fmt(m.get("annual_return"), ".1%"),
+            _fmt(m.get("max_drawdown"), ".0%"),
+            _fmt(m.get("beta")),
+            _fmt(d.get("deflated_sharpe")),
+            _esc(val),
+        ]
+        for b in blocks:
+            r = data["vaults"].get((e["hash"], b))
+            if not r:
+                cells.append("not opened")
+            elif r.get("metrics"):
+                cells.append(_fmt(r["metrics"]["sharpe"]))
+            else:
+                cells.append("sealed")
+        body.append("<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
+    return (
+        '<div class="table-wrap"><table class="comparison"><thead><tr>'
+        + "".join(f"<th>{_esc(h)}</th>" for h in head)
+        + "</tr></thead><tbody>"
+        + "".join(body)
+        + "</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------- page
@@ -592,6 +793,8 @@ def build(season: Season, include_sealed: bool = False) -> str:
         equity=eq_svg,
         equity_note=_esc(eq_note),
         vaults=vault_charts(data),
+        comparison_chart=comparison_chart(data),
+        comparison_table=comparison_table(data),
         table=trials_table(data),
         failures=failures(data),
         periods=_periods(s),

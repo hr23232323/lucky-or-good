@@ -15,7 +15,15 @@ what the best of this many strategies would be expected to reach by luck alone. 
 of it is indistinguishable from noise.</p>
 <div class="card">{sharpe}
 <div class="legend"><span><span class="key baseline"></span>textbook baseline</span>
-<span><span class="key candidate"></span>proposed candidate</span></div></div>
+<span><span class="key candidate"></span>proposed candidate</span>
+<span><span class="key ref"></span>reference portfolio</span></div></div>
+
+<h2>Every hypothesis, compared</h2>
+<p class="lede">Each strategy's case and how it did, best discovery Sharpe first, with SPY and a
+60/40 balanced portfolio for reference. Discovery is the only period the proposer could see;
+the sealed periods show what held up on data it never saw.</p>
+{comparison_chart}
+{comparison_table}
 
 <h2>Growth of $1 in discovery</h2>
 <p class="lede">Each strategy's net returns compounded over the discovery period, against the
@@ -23,7 +31,8 @@ benchmark. Hover to read values at a date.</p>
 <div class="card">{equity}
 <div class="legend"><span><span class="key line baseline"></span>baselines</span>
 <span><span class="key line candidate"></span>candidates</span>
-<span><span class="key line bench"></span>benchmark</span></div>
+<span><span class="key line bench"></span>benchmark</span>
+<span><span class="key line balanced"></span>60/40 balanced</span></div>
 <p class="note">{equity_note}</p></div>
 
 <h2>Sealed periods</h2>

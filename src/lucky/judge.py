@@ -27,6 +27,7 @@ from .periods import SEALED, Block
 from .sandbox import StrategyError, run_strategy, save_panel
 from .season import Season
 
+BOND_ETF = "IEF"  # 7-10 year Treasuries, the bond side of the 60/40 reference
 LOADER_VERSION = "2"  # bump when loading or cleaning changes, so cached panels rebuild
 THRESHOLD = 0.5  # validation answers only move when it disagrees with discovery by this much
 NOISE = 0.25  # Laplace scale (annual Sharpe units) for validation answers
@@ -243,16 +244,31 @@ class Judge:
         return self._log(outcome, sealed=False)
 
     def _save_benchmark(self, block: Block) -> None:
-        """Keep the benchmark's returns for the block next to the trials (for reports)."""
+        """Keep reference returns for the block next to the trials, for reports.
+
+        Two references: the benchmark ETF bought and held, and a balanced 60/40
+        portfolio (benchmark plus intermediate Treasuries, rebalanced daily).
+        Both on the engine's open-to-open clock. Neither is a trial.
+        """
         path = self.season.dir / "returns" / f"benchmark_{block.name}.parquet"
         if path.exists():
             return
-        bench = self.benchmark(block)
-        if bench is None:
+        start, end = self.periods.load_window(block)
+        try:
+            etf = MarketData(self.root, asset="etf").load(
+                start, end, symbols=[self.season.benchmark, BOND_ETF], clean=False
+            )
+        except (FileNotFoundError, ValueError):
             return
+        if self.season.benchmark not in etf.symbols:
+            return
+        refs = {"return": open_to_open(etf, self.season.benchmark)}
+        if BOND_ETF in etf.symbols:
+            bonds = open_to_open(etf, BOND_ETF)
+            refs["balanced"] = (0.6 * refs["return"] + 0.4 * bonds).where(bonds.notna())
+        frame = pd.DataFrame(refs).loc[block.start : block.end]
         path.parent.mkdir(exist_ok=True)
-        bench = bench.loc[block.start : block.end].rename("return")
-        bench.to_frame().to_parquet(path)
+        frame.to_parquet(path)
 
     def _validate(self, path: Path, block: Block) -> dict:
         source = path.read_text()
@@ -324,6 +340,7 @@ class Judge:
                 ),
             }
         report = {k: v for k, v in outcome.items() if k != "_returns"}
+        self._save_benchmark(block)
         record = self._log(outcome, sealed=True)
         return {**report, "seq": record["seq"]}
 

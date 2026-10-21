@@ -62,3 +62,14 @@ def test_report_needs_no_market_data(season, tmp_path):
     copy = Season.load(moved)
     copy.data_root = str(tmp_path / "nowhere")
     assert "volume shock" in build(copy)
+
+
+def test_comparison_views(season):
+    public = build(season)
+    assert 'class="comparison"' in public and "volume shock long-short" in public
+    assert (
+        'class="pt pt-vault_b"' not in public
+    )  # the discovery-vs-sealed chart needs sealed results
+    sealed = build(season, include_sealed=True)
+    assert 'class="pt pt-vault_b"' in sealed
+    assert "benchmark (MKT)" in sealed  # reference line from the synthetic market's ETF
