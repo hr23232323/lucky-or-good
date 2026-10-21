@@ -13,7 +13,9 @@ import importlib.util
 import multiprocessing as mp
 import os
 import pickle
+import queue as queue_mod
 import tempfile
+import time
 import traceback
 from pathlib import Path
 
@@ -76,6 +78,26 @@ def _child(path: str, panel_file: str, until, queue) -> None:
         queue.put(("error", traceback.format_exc(limit=5)))
 
 
+def _wait(proc, queue, timeout: float):
+    """The child's answer, or a StrategyError if it times out or dies without one."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            return queue.get(timeout=1.0)
+        except queue_mod.Empty:
+            pass
+        if not proc.is_alive():
+            try:  # it may have answered just before exiting
+                return queue.get(timeout=1.0)
+            except queue_mod.Empty:
+                raise StrategyError(
+                    f"strategy process exited (code {proc.exitcode}) without returning weights"
+                ) from None
+        if time.monotonic() > deadline:
+            proc.kill()
+            raise StrategyError(f"strategy timed out after {timeout:.0f}s")
+
+
 def run_strategy(
     path: Path | str, panel: Panel | Path | str, until=None, timeout: float = 300.0
 ) -> pd.DataFrame:
@@ -98,10 +120,7 @@ def run_strategy(
     )
     proc.start()
     try:
-        status, payload = queue.get(timeout=timeout)
-    except Exception as e:
-        proc.kill()
-        raise StrategyError(f"strategy timed out after {timeout:.0f}s") from e
+        status, payload = _wait(proc, queue, timeout)
     finally:
         proc.join(timeout=10)
         if proc.is_alive():

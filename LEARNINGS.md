@@ -9,6 +9,11 @@ Why:
 Changed:
 ```
 
+## 2026-10-20: opening the vaults from a scratch script froze a strategy twice and hung
+What happened: a throwaway script to freeze all Season 1 strategies and open their vaults wrote two freeze entries for the first strategy (ledger #24, #25), then sat idle with a dead child process. Separately, `ruff format .` had reformatted a proposer's strategy file, which changes its content hash, so it would no longer match its discovery score and couldn't be frozen. Caught and reverted before freezing.
+Why: the sandbox spawns its child, and spawn re-imports the parent's main module. The script had no `if __name__ == "__main__"` guard, so the child re-ran the script (the second freeze), then died trying to spawn its own child. The sandbox waited on a queue for the full 5-minute timeout instead of noticing the child was gone. For the formatter: a strategy's identity is its exact bytes, and the formatter was allowed to touch them.
+Changed: the sandbox now polls the child and fails fast if it exits without an answer (test in `tests/test_sandbox.py`). Vaults are opened with the `lucky freeze` and `lucky vault` commands, not ad-hoc scripts. Ruff's formatter excludes `strategies/`. The duplicate freeze stays in the ledger (it's append-only); it's harmless, since a freeze only records the hash. No vault was opened by the broken run.
+
 ## 2026-10-20: the real archive has bad prints that the synthetic market never had
 What happened: first contact with the full MarketParquet archive (38M rows, 16,410 symbols). 824 symbols have prices that jump more than 3x and snap back the next day; others have runs of stray prints on a handful of shares, unadjusted reverse splits (JDSU 2006, Level 3 2011), and prices like $70 billion a share. A held position would book thousands of percent in a day, and because the fake price inflates dollar volume, broken names ranked into the "most liquid 1,000".
 Why: vendor data is cleaned for the common cases only. Our tests used a synthetic market we generated, which by construction had none of this.

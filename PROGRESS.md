@@ -17,12 +17,13 @@ Goal: an honest playground for LLM strategy research (see `intents/000-goal.md`)
 | 011 | Propose-strategy skill for local agents | done |
 | 012 | Season report page | done |
 | 013 | MarketParquet downloader | done |
+| 014 | Real data: cleaning and scale | done |
 
 ## Next
 
-1. Get the MarketParquet archive and check load times and the reader on the full history (#9).
-2. Season 1: score the baselines on real data, then a first proposer run, pre-registered as in `docs/running-an-experiment.md`.
-3. Factor attribution (#2) before any write-up, so "alpha" means alpha.
+1. Season 1: baselines and 15 proposer strategies scored in discovery; vaults being opened for all of them (pre-registered). Then the results write-up.
+2. Factor attribution (#2) before any write-up, so "alpha" means alpha.
+3. Dividends (#1): every number so far is price return only.
 
 ## Not yet
 

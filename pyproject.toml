@@ -37,6 +37,10 @@ addopts = "-q"
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.format]
+# A strategy's identity is its exact bytes (content hash). Never reformat one.
+exclude = ["strategies/**"]
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
 
